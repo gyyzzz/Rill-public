@@ -45,7 +45,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="orionx", description="OrionXCore command line client.")
     parser.add_argument(
         "--base-url",
-        default="http://127.0.0.1:8080",
+        default="http://127.0.0.1:18080",
         help="Base URL for the OrionXCore service.",
     )
     parser.add_argument(
