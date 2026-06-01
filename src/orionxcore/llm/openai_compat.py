@@ -59,7 +59,7 @@ class OpenAICompatibleClient:
         }
         timeout = httpx.Timeout(self._settings.http_timeout)
 
-        async with httpx.AsyncClient(timeout=timeout) as client:
+        async with httpx.AsyncClient(timeout=timeout, proxy=None) as client:
             response = await client.post(
                 f"{self._settings.api_base_url.rstrip('/')}/chat/completions",
                 headers=headers,
