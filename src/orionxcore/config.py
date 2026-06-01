@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     terminal_workdir: Path = Field(default_factory=lambda: Path(".").resolve())
     terminal_timeout: int = 30
     allow_risky_commands: bool = False
+    require_terminal_confirmation: bool = False  # 每个命令都需用户确认
 
     enable_database: bool = False
     database_url: str = ""

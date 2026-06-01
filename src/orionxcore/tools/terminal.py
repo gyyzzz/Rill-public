@@ -26,6 +26,10 @@ class TerminalTool(Tool):
                 "description": "Optional timeout in seconds.",
                 "minimum": 1,
             },
+            "confirmed": {
+                "type": "boolean",
+                "description": "Set to true after user approves the command execution.",
+            },
         },
         "required": ["command"],
         "additionalProperties": False,

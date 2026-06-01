@@ -83,19 +83,22 @@ class DatabaseTool(Tool):
             int(arguments.get("limit") or self._settings.database_max_rows),
             self._settings.database_max_rows,
         )
-        engine = create_engine(self._settings.database_url)
-        with engine.connect() as connection:
-            self._apply_query_timeout(connection)
-            result = connection.execute(text(statement))
-            rows = result.fetchmany(limit) if result.returns_rows else []
-            columns = list(result.keys()) if result.returns_rows else []
-        return {
-            "ok": True,
-            "dialect": "clickhouse",
-            "row_count": len(rows),
-            "columns": columns,
-            "rows": [dict(row._mapping) for row in rows],
-        }
+        try:
+            engine = create_engine(self._settings.database_url)
+            with engine.connect() as connection:
+                self._apply_query_timeout(connection)
+                result = connection.execute(text(statement))
+                rows = result.fetchmany(limit) if result.returns_rows else []
+                columns = list(result.keys()) if result.returns_rows else []
+            return {
+                "ok": True,
+                "dialect": "clickhouse",
+                "row_count": len(rows),
+                "columns": columns,
+                "rows": [dict(row._mapping) for row in rows],
+            }
+        except Exception as e:
+            return {"ok": False, "error": str(e), "sql": statement}
 
     async def _text_to_sql(self, arguments: dict[str, Any]) -> dict[str, Any]:
         question = (arguments.get("question") or "").strip()
@@ -103,6 +106,9 @@ class DatabaseTool(Tool):
             return {"ok": False, "error": "Missing natural language question for text_to_sql."}
 
         schema_context = self._build_schema_context(arguments)
+        # 日志：打印 schema context
+        print(f"[DEBUG] schema_context:\n{schema_context}")
+        print(f"[DEBUG] arguments: {arguments}")
         trace: dict[str, Any] = {
             "question": question,
             "operation": "text_to_sql",
@@ -112,6 +118,7 @@ class DatabaseTool(Tool):
             "attempts": [],
         }
         sql = await self._generate_sql(question=question, schema_context=schema_context)
+        print(f"[DEBUG] generated SQL: {sql}")
         trace["attempts"].append({"attempt": 1, "sql": sql})
         first_result = self._execute_sql(
             {

