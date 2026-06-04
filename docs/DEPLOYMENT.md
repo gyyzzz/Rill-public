@@ -9,14 +9,107 @@
 
 ## 1. 快速部署（本地开发）
 
-### 1.1 安装
+### 1.1 环境准备
+
+OrionXCore 要求 Python >= 3.11。如果你的系统 Python 版本较低，请先安装 3.11+。
+
+#### 方式一：使用 uv（推荐）
+
+[uv](https://docs.astral.sh/uv/) 是 Astral 开发的快速 Python 包管理器，比 pip 快 10-100 倍。
+
+**安装 uv**：
+
+```bash
+# macOS/Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 或使用 Homebrew (macOS)
+brew install uv
+
+# 或使用 pipx
+pipx install uv
+```
+
+**使用 uv 安装 Python 3.11+**：
+
+```bash
+# 安装 Python 3.11
+uv python install 3.11
+
+# 查看已安装的 Python 版本
+uv python list
+```
+
+**使用 uv 创建项目**：
 
 ```bash
 # 克隆仓库
 git clone https://github.com/gyyzzz/OrionXCore.git
 cd OrionXCore
 
-# 创建虚拟环境
+# uv 会自动创建虚拟环境并安装依赖
+uv sync
+
+# 可选: 安装 ClickHouse 支持
+uv sync --extra clickhouse
+
+# 可选: 安装开发依赖
+uv sync --extra dev
+```
+
+#### 方式二：使用系统包管理器安装 Python 3.11+
+
+**Ubuntu/Debian**：
+
+```bash
+sudo apt update
+sudo apt install python3.11 python3.11-venv python3.11-dev
+
+# 设置为默认 Python (可选)
+sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
+```
+
+**CentOS/RHEL/Fedora**：
+
+```bash
+# CentOS/RHEL 9
+sudo dnf install python3.11 python3.11-devel
+
+# Fedora
+sudo dnf install python3.11
+
+# CentOS 7 (需要 SCL)
+sudo yum install centos-release-scl
+sudo yum install rh-python311
+scl enable rh-python311 bash
+```
+
+**macOS (Homebrew)**：
+
+```bash
+brew install python@3.11
+
+# 设置为默认 (可选)
+brew link python@3.11 --force --overwrite
+```
+
+**验证 Python 版本**：
+
+```bash
+python3 --version
+# 应显示 Python 3.11.x 或更高版本
+```
+
+---
+
+### 1.2 安装依赖
+
+```bash
+# 克隆仓库
+git clone https://github.com/gyyzzz/OrionXCore.git
+cd OrionXCore
+
+# 创建虚拟环境 (如果已用 uv sync，此步骤已自动完成)
 python3 -m venv .venv
 source .venv/bin/activate
 
@@ -30,7 +123,9 @@ pip install -e ".[clickhouse]"
 pip install -e ".[dev]"
 ```
 
-### 1.2 配置
+---
+
+### 1.3 配置
 
 ```bash
 # 复制配置模板
@@ -47,7 +142,7 @@ ORIONXCORE_API_KEY=your_api_key        # API 密钥
 ORIONXCORE_API_BASE_URL=https://api.openai.com/v1  # API 地址
 ```
 
-### 1.3 启动服务
+### 1.4 启动服务
 
 ```bash
 # 直接启动
