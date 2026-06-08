@@ -1,4 +1,5 @@
 from typing import Any
+import logging
 
 from sqlalchemy import create_engine, text
 
@@ -51,6 +52,7 @@ class DatabaseTool(Tool):
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
         self._llm_client = OpenAICompatibleClient(settings)
+        self._logger = logging.getLogger(__name__)
 
     async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:
         database_url = self._settings.database_url
@@ -63,6 +65,7 @@ class DatabaseTool(Tool):
                 "dialect": self._safe_dialect_name(database_url),
             }
         operation = arguments.get("operation") or "query"
+        self._logger.info(f"数据库操作: {operation}")
         if operation == "list_tables":
             return self._list_tables(arguments)
         if operation == "describe_table":
@@ -83,6 +86,7 @@ class DatabaseTool(Tool):
             int(arguments.get("limit") or self._settings.database_max_rows),
             self._settings.database_max_rows,
         )
+        self._logger.info(f"执行 SQL: {statement[:200]}...")
         try:
             engine = create_engine(self._settings.database_url)
             with engine.connect() as connection:
@@ -90,6 +94,7 @@ class DatabaseTool(Tool):
                 result = connection.execute(text(statement))
                 rows = result.fetchmany(limit) if result.returns_rows else []
                 columns = list(result.keys()) if result.returns_rows else []
+            self._logger.info(f"SQL 执行成功: {len(rows)} 行")
             return {
                 "ok": True,
                 "dialect": "clickhouse",
@@ -98,6 +103,7 @@ class DatabaseTool(Tool):
                 "rows": [dict(row._mapping) for row in rows],
             }
         except Exception as e:
+            self._logger.error(f"SQL 执行失败: {e}")
             return {"ok": False, "error": str(e), "sql": statement}
 
     async def _text_to_sql(self, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -105,10 +111,9 @@ class DatabaseTool(Tool):
         if not question:
             return {"ok": False, "error": "Missing natural language question for text_to_sql."}
 
+        self._logger.info(f"Text-to-SQL: {question}")
         schema_context = self._build_schema_context(arguments)
-        # 日志：打印 schema context
-        print(f"[DEBUG] schema_context:\n{schema_context}")
-        print(f"[DEBUG] arguments: {arguments}")
+        self._logger.debug(f"Schema context 长度: {len(schema_context)} 字符")
         trace: dict[str, Any] = {
             "question": question,
             "operation": "text_to_sql",
@@ -118,7 +123,7 @@ class DatabaseTool(Tool):
             "attempts": [],
         }
         sql = await self._generate_sql(question=question, schema_context=schema_context)
-        print(f"[DEBUG] generated SQL: {sql}")
+        self._logger.info(f"生成 SQL (尝试1): {sql}")
         trace["attempts"].append({"attempt": 1, "sql": sql})
         first_result = self._execute_sql(
             {
@@ -136,12 +141,14 @@ class DatabaseTool(Tool):
             return first_result
 
         trace["attempts"][0]["error"] = first_result.get("error")
+        self._logger.warning(f"SQL 执行失败 (尝试1): {first_result.get('error')}")
         retry_sql = await self._generate_sql(
             question=question,
             schema_context=schema_context,
             previous_sql=sql,
             previous_error=first_result.get("error", "Unknown SQL execution error."),
         )
+        self._logger.info(f"生成 SQL (尝试2): {retry_sql}")
         trace["attempts"].append(
             {
                 "attempt": 2,

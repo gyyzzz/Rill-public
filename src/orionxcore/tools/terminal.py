@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import shlex
 from pathlib import Path
 from typing import Any
@@ -37,12 +38,14 @@ class TerminalTool(Tool):
 
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
+        self._logger = logging.getLogger(__name__)
 
     async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:
         command = (arguments.get("command") or "").strip()
         if not command:
             return {"ok": False, "error": "Missing command."}
         if self._is_risky(command) and not self._settings.allow_risky_commands:
+            self._logger.warning(f"阻止风险命令: {command}")
             return {
                 "ok": False,
                 "error": "Command blocked by safety policy.",
@@ -51,6 +54,7 @@ class TerminalTool(Tool):
 
         workdir = self._resolve_workdir(arguments.get("workdir"))
         timeout = int(arguments.get("timeout") or self._settings.terminal_timeout)
+        self._logger.info(f"执行命令: {command}, workdir: {workdir}, timeout: {timeout}s")
         try:
             process = await asyncio.create_subprocess_shell(
                 command,
@@ -60,8 +64,12 @@ class TerminalTool(Tool):
             )
             stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
         except TimeoutError:
+            self._logger.error(f"命令超时: {command}")
             return {"ok": False, "error": f"Command timed out after {timeout} seconds."}
 
+        self._logger.info(f"命令完成: exit_code={process.returncode}, stdout_len={len(stdout)}")
+        if process.returncode != 0:
+            self._logger.warning(f"命令失败: stderr={stderr.decode('utf-8', errors='replace')[:200]}")
         return {
             "ok": process.returncode == 0,
             "command": command,

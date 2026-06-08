@@ -1,4 +1,5 @@
 import json
+import logging
 from typing import AsyncIterator
 
 from fastapi import APIRouter, Depends
@@ -13,6 +14,7 @@ from orionxcore.services.agent import AgentService
 from orionxcore.tools.registry import build_registry
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 def get_agent_service(settings: Settings = Depends(get_settings)) -> AgentService:
@@ -40,7 +42,15 @@ async def respond(
     request: AgentRequest,
     agent_service: AgentService = Depends(get_agent_service),
 ) -> AgentResponse:
-    return await agent_service.run(request)
+    logger.info(f"Agent 请求: session_id={request.session_id}, messages_count={len(request.messages)}")
+    logger.debug(f"请求消息: {[m.role for m in request.messages]}")
+    try:
+        result = await agent_service.run(request)
+        logger.info(f"Agent 完成: iterations={result.iterations}, session_id={result.session_id}")
+        return result
+    except Exception as e:
+        logger.error(f"Agent 执行失败: {e}", exc_info=True)
+        raise
 
 
 @router.post("/v1/chat/completions", response_model=ChatCompletionResponse)
@@ -48,6 +58,7 @@ async def chat_completions(
     request: ChatCompletionRequest,
     agent_service: AgentService = Depends(get_agent_service),
 ) -> ChatCompletionResponse | StreamingResponse:
+    logger.info(f"Chat completions 请求: model={request.model}, stream={request.stream}, messages_count={len(request.messages)}")
     if request.stream:
         async def event_stream() -> AsyncIterator[str]:
             async for chunk in agent_service.stream_chat_completion(request):
@@ -56,7 +67,13 @@ async def chat_completions(
 
         return StreamingResponse(event_stream(), media_type="text/event-stream")
 
-    return await agent_service.run_chat_completion(request)
+    try:
+        result = await agent_service.run_chat_completion(request)
+        logger.info(f"Chat completions 完成: finish_reason={result.choices[0].finish_reason}")
+        return result
+    except Exception as e:
+        logger.error(f"Chat completions 执行失败: {e}", exc_info=True)
+        raise
 
 
 @router.post("/v1/agent/stream")
@@ -64,8 +81,10 @@ async def stream(
     request: AgentRequest,
     agent_service: AgentService = Depends(get_agent_service),
 ) -> StreamingResponse:
+    logger.info(f"Agent 流式请求: session_id={request.session_id}")
     async def event_stream() -> AsyncIterator[str]:
         async for event in agent_service.stream(request):
+            logger.debug(f"发送事件: type={event.type}")
             yield f"event: {event.type}\n"
             yield f"data: {json.dumps(event.payload, ensure_ascii=True)}\n\n"
 

@@ -1,4 +1,5 @@
 import json
+import logging
 import time
 import uuid
 from datetime import datetime, date
@@ -12,6 +13,8 @@ from orionxcore.schemas import ChatCompletionChunk, ChatCompletionChunkChoice, C
 from orionxcore.schemas import ChatCompletionMessage, ChatCompletionRequest, ChatCompletionResponse
 from orionxcore.schemas import ChatCompletionChoice, ChatCompletionUsage, ChatMessage
 from orionxcore.tools.registry import ToolRegistry
+
+logger = logging.getLogger(__name__)
 
 
 class DateTimeEncoder(json.JSONEncoder):
@@ -45,8 +48,10 @@ class AgentService:
         self._client = OpenAICompatibleClient(settings)
 
     async def run(self, request: AgentRequest) -> AgentResponse:
+        logger.info(f"开始 Agent 执行循环, messages: {len(request.messages)}")
         events: list[AgentEvent] = []
         final_message, iterations = await self._run_loop(request, events.append)
+        logger.info(f"Agent 执行完成, iterations: {iterations}")
         return AgentResponse(
             message=final_message,
             events=events,
@@ -226,8 +231,10 @@ class AgentService:
         messages = self._build_messages(request)
         registry = self._registry.filtered(requested_tools)
         tools = registry.as_openai_tools()
+        logger.debug(f"可用工具: {[t['function']['name'] for t in tools]}")
 
         for iteration in range(1, self._settings.max_iterations + 1):
+            logger.info(f"迭代 #{iteration}")
             emit(AgentEvent(type="iteration", payload={"iteration": iteration}))
             llm_response = await self._client.complete(
                 messages=messages,
@@ -238,6 +245,7 @@ class AgentService:
             )
 
             if llm_response.tool_calls:
+                logger.info(f"LLM 返回工具调用: {[c.name for c in llm_response.tool_calls]}")
                 assistant_message = {
                     "role": "assistant",
                     "content": llm_response.content,
@@ -259,6 +267,7 @@ class AgentService:
                 messages.append(assistant_message)
 
                 for call in llm_response.tool_calls:
+                    logger.info(f"执行工具: {call.name}, arguments: {json.dumps(call.arguments, ensure_ascii=False)[:200]}")
                     emit(
                         AgentEvent(
                             type="tool_call",
@@ -266,6 +275,7 @@ class AgentService:
                         )
                     )
                     result = await registry.execute(call.name, call.arguments)
+                    logger.info(f"工具结果: {call.name}, ok: {result.get('ok', 'unknown')}")
                     emit(
                         AgentEvent(
                             type="tool_result",
@@ -283,10 +293,12 @@ class AgentService:
                     )
                 continue
 
+            logger.info(f"LLM 返回最终回复")
             final_message = ChatMessage(role="assistant", content=llm_response.content)
             emit(AgentEvent(type="assistant", payload={"content": llm_response.content}))
             return final_message, iteration
 
+        logger.warning(f"达到最大迭代次数 {self._settings.max_iterations}")
         content = (
             "The agent stopped because the maximum iteration count was reached before a final "
             "answer was produced."
