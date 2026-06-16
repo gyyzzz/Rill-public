@@ -1,1 +1,1 @@
-__all__ = ["base", "database", "registry", "terminal"]
+__all__ = ["base", "chart", "database", "registry", "terminal"]

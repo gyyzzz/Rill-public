@@ -104,3 +104,11 @@ class ChatCompletionChunk(BaseModel):
     created: int
     model: str
     choices: list[ChatCompletionChunkChoice]
+
+
+class UploadResponse(BaseModel):
+    ok: bool
+    filename: str
+    path: str
+    size_bytes: int
+    content_type: str | None = None

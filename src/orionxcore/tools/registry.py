@@ -3,6 +3,7 @@ from typing import Any
 from orionxcore.config import Settings
 from orionxcore.schemas import ToolDescriptor
 from orionxcore.tools.base import Tool
+from orionxcore.tools.chart import ChartTool
 from orionxcore.tools.database import DatabaseTool
 from orionxcore.tools.filesystem import FileSystemTool
 from orionxcore.tools.terminal import TerminalTool
@@ -62,4 +63,6 @@ def build_registry(settings: Settings) -> ToolRegistry:
         tools.append(DatabaseTool(settings))
     if settings.enable_filesystem:
         tools.append(FileSystemTool(settings))
+    if settings.enable_chart:
+        tools.append(ChartTool(settings))
     return ToolRegistry(tools)

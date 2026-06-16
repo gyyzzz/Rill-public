@@ -1,14 +1,15 @@
 import json
 import logging
+from pathlib import Path
 from typing import AsyncIterator
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 
 from orionxcore.api.playground import render_playground
 from orionxcore.config import Settings, get_settings
 from orionxcore.schemas import AgentRequest, AgentResponse, ChatCompletionRequest
-from orionxcore.schemas import ChatCompletionResponse
+from orionxcore.schemas import ChatCompletionResponse, UploadResponse
 from orionxcore.schemas import ToolDescriptor
 from orionxcore.services.agent import AgentService
 from orionxcore.tools.registry import build_registry
@@ -35,6 +36,62 @@ async def health(settings: Settings = Depends(get_settings)) -> dict[str, str | 
 async def list_tools(settings: Settings = Depends(get_settings)) -> list[ToolDescriptor]:
     registry = build_registry(settings)
     return registry.describe()
+
+
+@router.post("/v1/upload", response_model=UploadResponse)
+async def upload_file(
+    file: UploadFile = File(...),
+    settings: Settings = Depends(get_settings),
+) -> UploadResponse:
+    if not settings.enable_upload:
+        raise HTTPException(status_code=403, detail="File upload is disabled.")
+
+    # Check file size
+    content = await file.read()
+    max_bytes = settings.upload_max_size_mb * 1024 * 1024
+    if len(content) > max_bytes:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File too large: {len(content)} bytes exceeds {max_bytes} bytes.",
+        )
+
+    # Check extension
+    original_name = file.filename or "unnamed"
+    suffix = Path(original_name).suffix.lower()
+    allowed = {ext.strip().lower() for ext in settings.upload_allowed_extensions.split(",")}
+    if suffix and allowed and suffix not in allowed:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File type not allowed: {suffix}. Allowed: {', '.join(sorted(allowed))}",
+        )
+
+    # Sanitize filename: strip directory components to prevent path traversal
+    safe_name = Path(original_name).name
+    if not safe_name or safe_name.startswith("."):
+        safe_name = f"upload_{int(__import__('time').time())}{suffix or ''}"
+
+    # Resolve destination directory
+    if settings.upload_workdir:
+        base = settings.upload_workdir.resolve()
+    else:
+        base = (settings.terminal_workdir / "workspace" / "uploads").resolve()
+
+    destination = (base / safe_name).resolve()
+    if destination != base and base not in destination.parents:
+        raise HTTPException(status_code=400, detail=f"Path escapes upload directory: {destination}")
+
+    base.mkdir(parents=True, exist_ok=True)
+    destination.write_bytes(content)
+
+    logger.info(f"文件已上传: {destination}, 大小: {len(content)} bytes")
+
+    return UploadResponse(
+        ok=True,
+        filename=safe_name,
+        path=str(destination),
+        size_bytes=len(content),
+        content_type=file.content_type,
+    )
 
 
 @router.post("/v1/agent/respond", response_model=AgentResponse)
