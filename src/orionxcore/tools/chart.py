@@ -344,7 +344,7 @@ class ChartTool(Tool):
         elif self._settings.filesystem_workdir:
             base = (self._settings.filesystem_workdir / "charts").resolve()
         else:
-            base = (self._settings.terminal_workdir / "charts").resolve()
+            base = (self._settings.terminal_workdir / "workspace" / "charts").resolve()
 
         if not filename:
             timestamp = int(time.time())

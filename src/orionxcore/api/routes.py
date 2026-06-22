@@ -1,10 +1,11 @@
 import json
 import logging
+import mimetypes
 from pathlib import Path
 from typing import AsyncIterator
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 
 from orionxcore.api.playground import render_playground
 from orionxcore.config import Settings, get_settings
@@ -92,6 +93,32 @@ async def upload_file(
         size_bytes=len(content),
         content_type=file.content_type,
     )
+
+
+@router.get("/v1/workspace/{filepath:path}")
+async def serve_workspace_file(
+    filepath: str,
+    settings: Settings = Depends(get_settings),
+) -> FileResponse:
+    """Serve files from the workspace directory (charts, uploads, etc.)."""
+    # Determine workspace root
+    if settings.upload_workdir:
+        base = settings.upload_workdir.resolve()
+    elif settings.filesystem_workdir:
+        base = settings.filesystem_workdir.resolve()
+    else:
+        base = (settings.terminal_workdir / "workspace").resolve()
+
+    # Resolve requested path and ensure it's within workspace
+    requested = (base / filepath).resolve()
+    if requested != base and base not in requested.parents:
+        raise HTTPException(status_code=403, detail="Access denied: path escapes workspace.")
+
+    if not requested.exists() or not requested.is_file():
+        raise HTTPException(status_code=404, detail="File not found.")
+
+    content_type, _ = mimetypes.guess_type(str(requested))
+    return FileResponse(str(requested), media_type=content_type or "application/octet-stream")
 
 
 @router.post("/v1/agent/respond", response_model=AgentResponse)
