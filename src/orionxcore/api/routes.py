@@ -75,7 +75,8 @@ async def upload_file(
     if settings.upload_workdir:
         base = settings.upload_workdir.resolve()
     else:
-        base = (settings.terminal_workdir / "workspace" / "uploads").resolve()
+        workspace_root = settings.filesystem_workdir or settings.terminal_workdir
+        base = (workspace_root / "uploads").resolve()
 
     destination = (base / safe_name).resolve()
     if destination != base and base not in destination.parents:
