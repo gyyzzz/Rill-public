@@ -10,4 +10,4 @@ build/
 src/*.egg-info/
 start.sh
 workspace/
-docs
+docs/
