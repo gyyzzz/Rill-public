@@ -53,6 +53,15 @@ class Settings(BaseSettings):
     database_allow_mutation: bool = False
     database_allowed_databases: str = ""
 
+    enable_alert: bool = False
+    alert_api_url: str = ""
+    alert_api_token: str = ""
+    alert_api_timeout_seconds: int = 15
+    alert_default_window_minutes: int = 60
+    alert_max_rows: int = 200
+    alert_timezone: str = "Asia/Shanghai"
+    alert_verify_ssl: bool = True
+
     enable_filesystem: bool = False
     filesystem_workdir: Path | None = None
     filesystem_allow_write: bool = True
