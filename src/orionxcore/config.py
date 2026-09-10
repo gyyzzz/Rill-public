@@ -34,6 +34,8 @@ class Settings(BaseSettings):
     system_prompt: str = "You are OrionXCore, a lightweight AI coding agent."
     max_iterations: int = 6
     http_timeout: int = 120
+    agent_max_concurrent_requests: int = Field(default=4, ge=1)
+    agent_queue_timeout_seconds: float = Field(default=5.0, ge=0)
 
     # 日志配置
     log_level: str = "INFO"
@@ -54,13 +56,11 @@ class Settings(BaseSettings):
     database_allowed_databases: str = ""
 
     enable_alert: bool = False
-    alert_api_url: str = ""
-    alert_api_token: str = ""
-    alert_api_timeout_seconds: int = 15
+    alert_database_url: str = ""
+    alert_database_timeout_seconds: int = 30
     alert_default_window_minutes: int = 60
-    alert_max_rows: int = 200
+    alert_top_n: int = 10
     alert_timezone: str = "Asia/Shanghai"
-    alert_verify_ssl: bool = True
 
     enable_filesystem: bool = False
     filesystem_workdir: Path | None = None

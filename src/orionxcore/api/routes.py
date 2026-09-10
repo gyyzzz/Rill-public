@@ -4,7 +4,7 @@ import mimetypes
 from pathlib import Path
 from typing import AsyncIterator
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 
 from orionxcore.api.playground import render_playground
@@ -13,14 +13,22 @@ from orionxcore.schemas import AgentRequest, AgentResponse, ChatCompletionReques
 from orionxcore.schemas import ChatCompletionResponse, UploadResponse
 from orionxcore.schemas import ToolDescriptor
 from orionxcore.services.agent import AgentService
+from orionxcore.services.flow_control import AgentCapacityError, AgentFlowController
 from orionxcore.tools.registry import build_registry
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-def get_agent_service(settings: Settings = Depends(get_settings)) -> AgentService:
-    return AgentService(settings=settings, registry=build_registry(settings))
+def get_flow_controller(request: Request) -> AgentFlowController:
+    return request.app.state.agent_flow_controller
+
+
+def get_agent_service(
+    settings: Settings = Depends(get_settings),
+    flow_controller: AgentFlowController = Depends(get_flow_controller),
+) -> AgentService:
+    return AgentService(settings=settings, registry=build_registry(settings), flow_controller=flow_controller)
 
 
 @router.get("/health")
@@ -133,6 +141,8 @@ async def respond(
         result = await agent_service.run(request)
         logger.info(f"Agent 完成: iterations={result.iterations}, session_id={result.session_id}")
         return result
+    except AgentCapacityError as e:
+        raise HTTPException(status_code=429, detail=str(e), headers={"Retry-After": "1"}) from e
     except Exception as e:
         logger.error(f"Agent 执行失败: {e}", exc_info=True)
         raise
@@ -146,8 +156,11 @@ async def chat_completions(
     logger.info(f"Chat completions 请求: model={request.model}, stream={request.stream}, messages_count={len(request.messages)}")
     if request.stream:
         async def event_stream() -> AsyncIterator[str]:
-            async for chunk in agent_service.stream_chat_completion(request):
-                yield f"data: {chunk.model_dump_json()}\n\n"
+            try:
+                async for chunk in agent_service.stream_chat_completion(request):
+                    yield f"data: {chunk.model_dump_json()}\n\n"
+            except AgentCapacityError as e:
+                yield f"data: {json.dumps({'error': {'code': 'capacity_exhausted', 'message': str(e)}}, ensure_ascii=True)}\n\n"
             yield "data: [DONE]\n\n"
 
         return StreamingResponse(event_stream(), media_type="text/event-stream")
@@ -156,6 +169,8 @@ async def chat_completions(
         result = await agent_service.run_chat_completion(request)
         logger.info(f"Chat completions 完成: finish_reason={result.choices[0].finish_reason}")
         return result
+    except AgentCapacityError as e:
+        raise HTTPException(status_code=429, detail=str(e), headers={"Retry-After": "1"}) from e
     except Exception as e:
         logger.error(f"Chat completions 执行失败: {e}", exc_info=True)
         raise
@@ -168,10 +183,15 @@ async def stream(
 ) -> StreamingResponse:
     logger.info(f"Agent 流式请求: session_id={request.session_id}")
     async def event_stream() -> AsyncIterator[str]:
-        async for event in agent_service.stream(request):
-            logger.debug(f"发送事件: type={event.type}")
-            yield f"event: {event.type}\n"
-            yield f"data: {json.dumps(event.payload, ensure_ascii=True)}\n\n"
+        try:
+            async for event in agent_service.stream(request):
+                logger.debug(f"发送事件: type={event.type}")
+                yield f"event: {event.type}\n"
+                yield f"data: {json.dumps(event.payload, ensure_ascii=True)}\n\n"
+        except AgentCapacityError as e:
+            # SSE headers are already committed, so expose a machine-readable error event.
+            yield "event: error\n"
+            yield f"data: {json.dumps({'status_code': 429, 'detail': str(e)}, ensure_ascii=True)}\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 

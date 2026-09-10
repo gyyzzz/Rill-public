@@ -2,12 +2,14 @@ import json
 import logging
 import time
 import uuid
+from contextlib import asynccontextmanager
 from datetime import datetime, date
 from dataclasses import dataclass
 from typing import Any, AsyncIterator, Callable
 
 from orionxcore.config import Settings
 from orionxcore.llm.openai_compat import OpenAICompatibleClient
+from orionxcore.services.flow_control import AgentFlowController
 from orionxcore.schemas import AgentEvent, AgentRequest, AgentResponse
 from orionxcore.schemas import ChatCompletionChunk, ChatCompletionChunkChoice, ChatCompletionDelta
 from orionxcore.schemas import ChatCompletionMessage, ChatCompletionRequest, ChatCompletionResponse
@@ -42,15 +44,17 @@ class ChatCompletionTurnResult:
 
 
 class AgentService:
-    def __init__(self, settings: Settings, registry: ToolRegistry) -> None:
+    def __init__(self, settings: Settings, registry: ToolRegistry, flow_controller: AgentFlowController | None = None) -> None:
         self._settings = settings
         self._registry = registry
         self._client = OpenAICompatibleClient(settings)
+        self._flow_controller = flow_controller
 
     async def run(self, request: AgentRequest) -> AgentResponse:
         logger.info(f"开始 Agent 执行循环, messages: {len(request.messages)}")
         events: list[AgentEvent] = []
-        final_message, iterations = await self._run_loop(request, events.append)
+        async with self._execution_slot():
+            final_message, iterations = await self._run_loop(request, events.append)
         logger.info(f"Agent 执行完成, iterations: {iterations}")
         return AgentResponse(
             message=final_message,
@@ -65,23 +69,25 @@ class AgentService:
         def emit(event: AgentEvent) -> None:
             events.append(event)
 
-        final_message, iterations = await self._run_loop(request, emit)
-        for event in events:
-            yield event
-        yield AgentEvent(
-            type="final",
-            payload={
-                "message": final_message.model_dump(),
-                "iterations": iterations,
-                "session_id": request.session_id,
-            },
-        )
+        async with self._execution_slot():
+            final_message, iterations = await self._run_loop(request, emit)
+            for event in events:
+                yield event
+            yield AgentEvent(
+                type="final",
+                payload={
+                    "message": final_message.model_dump(),
+                    "iterations": iterations,
+                    "session_id": request.session_id,
+                },
+            )
 
     async def run_chat_completion(
         self,
         request: ChatCompletionRequest,
     ) -> ChatCompletionResponse:
-        turn = await self._run_chat_completion_turn(request)
+        async with self._execution_slot():
+            turn = await self._run_chat_completion_turn(request)
         created = int(time.time())
         completion_id = f"chatcmpl-{uuid.uuid4().hex}"
         usage = self._estimate_usage(request.messages, turn.content)
@@ -167,6 +173,14 @@ class AgentService:
                 )
             ],
         )
+
+    @asynccontextmanager
+    async def _execution_slot(self) -> AsyncIterator[None]:
+        if self._flow_controller is None:
+            yield
+            return
+        async with self._flow_controller.slot():
+            yield
 
     async def _run_chat_completion_turn(
         self,
