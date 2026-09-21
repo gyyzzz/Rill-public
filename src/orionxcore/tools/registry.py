@@ -7,6 +7,7 @@ from orionxcore.tools.alert import AlertQueryTool
 from orionxcore.tools.chart import ChartTool
 from orionxcore.tools.database import DatabaseTool
 from orionxcore.tools.filesystem import FileSystemTool
+from orionxcore.tools.metrics import MetricsQueryTool
 from orionxcore.tools.terminal import TerminalTool
 
 
@@ -64,6 +65,8 @@ def build_registry(settings: Settings) -> ToolRegistry:
         tools.append(DatabaseTool(settings))
     if settings.enable_alert:
         tools.append(AlertQueryTool(settings))
+    if settings.enable_metrics:
+        tools.append(MetricsQueryTool(settings))
     if settings.enable_filesystem:
         tools.append(FileSystemTool(settings))
     if settings.enable_chart:

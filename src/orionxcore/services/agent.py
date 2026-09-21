@@ -334,8 +334,7 @@ class AgentService:
             messages.append(
                 {
                     "role": "system",
-                    "content": self._settings.system_prompt
-                    + "\nUse tools when they help. Explain risky actions before requesting them.",
+                    "content": self._system_prompt(),
                 }
             )
         messages.extend(message.model_dump(exclude_none=True) for message in request.messages)
@@ -351,12 +350,24 @@ class AgentService:
             messages.append(
                 {
                     "role": "system",
-                    "content": self._settings.system_prompt
-                    + "\nUse tools when they help. Explain risky actions before requesting them.",
+                    "content": self._system_prompt(),
                 }
             )
         messages.extend(message.model_dump(exclude_none=True) for message in request.messages)
         return messages
+
+    def _system_prompt(self) -> str:
+        prompt = self._settings.system_prompt + "\nUse tools when they help. Explain risky actions before requesting them."
+        if any(tool.name == "alert_query" for tool in self._registry.describe()):
+            prompt += (
+                "\nWhen using alert_query, follow these rules: if the user provides no time, call it without "
+                "time arguments so it queries the latest 30 minutes; if the user provides exactly one time point, "
+                "pass it as time_point so the tool queries 30 minutes before and after that point; include alarm "
+                "levels in the final answer. After the tool returns, strictly use this output format: 【查询范围】, "
+                "【告警统计】, 【未清除告警TopN】, 【总告警TopN】, 【分析】. The statistics must include uncleared "
+                "alerts and total alerts, and TopN details must be ranked by count and severity."
+            )
+        return prompt
 
     def _estimate_usage(
         self,

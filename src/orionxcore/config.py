@@ -58,9 +58,16 @@ class Settings(BaseSettings):
     enable_alert: bool = False
     alert_database_url: str = ""
     alert_database_timeout_seconds: int = 30
-    alert_default_window_minutes: int = 60
+    alert_default_window_minutes: int = 30
     alert_top_n: int = 10
     alert_timezone: str = "Asia/Shanghai"
+
+    # Metrics query tool 配置 (ClickHouse)
+    enable_metrics: bool = False
+    metrics_database_url: str = ""
+    metrics_database_timeout_seconds: int = 30
+    metrics_timezone: str = "Asia/Shanghai"
+    metrics_default_window_minutes: int = 30
 
     enable_filesystem: bool = False
     filesystem_workdir: Path | None = None
