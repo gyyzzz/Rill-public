@@ -16,11 +16,17 @@ class MetricsQueryTool(Tool):
 
     name = "metrics_query"
     _REPORT_PROMPT = (
-        "指标查询结果必须严格按以下固定格式输出，不要输出原始数据：\n"
-        "【查询范围】业务模块、时间范围。\n"
-        "【当前时段指标】各指标的请求数、成功数、成功率。\n"
-        "【前一日对比】各指标的请求数变化、成功数变化、成功率变化。\n"
-        "【分析】用1-2句话说明指标趋势、异常项和重点关注项。"
+        "指标查询结果分析要求：\n"
+        "1. 输出格式必须严格遵循以下结构，不要输出原始数据：\n"
+        "2. 【查询范围】说明业务模块、时间范围。\n"
+        "3. 【当前时段指标】列出各指标的请求数、成功数、成功率或平均比率等。\n"
+        "4. 【前一日对比】对比当前时段与前一日同时段的数据，分析变化趋势。\n"
+        "5. 【趋势分析】根据对比结果，用1-2句话说明指标趋势、异常项和重点关注项。\n"
+        "6. 指标波动判断标准：\n"
+        "   - 比率类指标（avg_rate）：变化超过5%为显著变化，±2%以内为稳定\n"
+        "   - 成功率类指标：变化超过5%为显著变化，±2%以内为稳定\n"
+        "   - 特殊指标「音视频锚定」：该指标日常波动较大，变化超过10%才视为异常，对比权重降低50%\n"
+        "7. 异常判断时，音视频锚定指标的权重应低于其他指标\n"
     )
 
     description = (
@@ -89,6 +95,11 @@ class MetricsQueryTool(Tool):
                             "success_field": "ImsCallExe",
                             "desc": "IMS域智能呼叫触发(VONR)",
                             "has_rate": True,
+                        },
+                        {
+                            "rate_field": "ImsCallAlertRate",
+                            "desc": "IMS域智能呼叫接通率(VONR)",
+                            "is_direct_rate": True,
                         },
                     ],
                 },
@@ -253,7 +264,50 @@ class MetricsQueryTool(Tool):
                 }
 
                 # 构建SQL查询
-                if metric.get("has_rate"):
+                if metric.get("is_direct_rate"):
+                    # 直接查询已计算的比率字段（平均值）
+                    rate_field = metric["rate_field"]
+                    sql = f"""
+                        SELECT avg({rate_field}) as avg_rate,
+                               min({rate_field}) as min_rate,
+                               max({rate_field}) as max_rate,
+                               count() as sample_count
+                        FROM {table_name}
+                        WHERE end_ts >= %(start_time)s
+                          AND end_ts <= %(end_time)s
+                    """
+                    params = {
+                        "start_time": time_range["start_time"],
+                        "end_time": time_range["end_time"],
+                    }
+
+                    if nename:
+                        sql += " AND nename = %(nename)s"
+                        params["nename"] = nename
+
+                    query_result = client.query(sql, params)
+                    if query_result.result_rows:
+                        avg_rate = float(query_result.result_rows[0][0] or 0)
+                        min_rate = float(query_result.result_rows[0][1] or 0)
+                        max_rate = float(query_result.result_rows[0][2] or 0)
+                        sample_count = int(query_result.result_rows[0][3] or 0)
+                        # 处理 NULL 或 NaN
+                        if avg_rate != avg_rate:  # NaN check
+                            avg_rate = 0
+                        if min_rate != min_rate:
+                            min_rate = 0
+                        if max_rate != max_rate:
+                            max_rate = 0
+                        result["avg_rate"] = round(avg_rate * 100, 2)  # 转换为百分比
+                        result["min_rate"] = round(min_rate * 100, 2)
+                        result["max_rate"] = round(max_rate * 100, 2)
+                        result["sample_count"] = sample_count
+                    else:
+                        result["avg_rate"] = 0
+                        result["min_rate"] = 0
+                        result["max_rate"] = 0
+                        result["sample_count"] = 0
+                elif metric.get("has_rate"):
                     # 有成功率计算的指标
                     request_field = metric["request_field"]
                     success_field = metric["success_field"]
@@ -321,7 +375,7 @@ class MetricsQueryTool(Tool):
         current: list[dict[str, Any]],
         previous: list[dict[str, Any]],
     ) -> list[dict[str, Any]]:
-        """对比当前指标与前一日指标。"""
+        """对比当前指标与前一日指标，只计算差值，不判断趋势。"""
         comparisons = []
 
         for curr, prev in zip(current, previous):
@@ -330,7 +384,22 @@ class MetricsQueryTool(Tool):
                 "metric_desc": curr["metric_desc"],
             }
 
-            if "request_count" in curr:
+            if "avg_rate" in curr:
+                # 直接比率指标
+                comparison["avg_rate_current"] = curr["avg_rate"]
+                comparison["avg_rate_previous"] = prev.get("avg_rate", 0)
+                comparison["avg_rate_change"] = round(curr["avg_rate"] - prev.get("avg_rate", 0), 2)
+
+                comparison["min_rate_current"] = curr["min_rate"]
+                comparison["min_rate_previous"] = prev.get("min_rate", 0)
+
+                comparison["max_rate_current"] = curr["max_rate"]
+                comparison["max_rate_previous"] = prev.get("max_rate", 0)
+
+                comparison["sample_count_current"] = curr["sample_count"]
+                comparison["sample_count_previous"] = prev.get("sample_count", 0)
+
+            elif "request_count" in curr:
                 # 有成功率的指标
                 request_diff = curr["request_count"] - prev.get("request_count", 0)
                 success_diff = curr["success_count"] - prev.get("success_count", 0)
@@ -353,14 +422,6 @@ class MetricsQueryTool(Tool):
                 comparison["success_rate_previous"] = prev.get("success_rate", 0)
                 comparison["success_rate_change"] = round(rate_diff, 2)
 
-                # 趋势判断
-                if rate_diff > 5:
-                    comparison["trend"] = "上升"
-                elif rate_diff < -5:
-                    comparison["trend"] = "下降"
-                else:
-                    comparison["trend"] = "稳定"
-
             else:
                 # 绝对值指标
                 value_diff = curr["total_value"] - prev.get("total_value", 0)
@@ -372,13 +433,6 @@ class MetricsQueryTool(Tool):
                     if prev.get("total_value", 0) > 0
                     else 0
                 )
-
-                if value_diff > 0:
-                    comparison["trend"] = "上升"
-                elif value_diff < 0:
-                    comparison["trend"] = "下降"
-                else:
-                    comparison["trend"] = "稳定"
 
             comparisons.append(comparison)
 

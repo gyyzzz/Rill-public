@@ -13,7 +13,7 @@ OrionXCore 是一个轻量级、可配置的 AI 编程代理服务。只需要�
 
 英文文档: [README.md](README.md)
 
-**文档**: [架构文档](docs/ARCHITECTURE.md) | [部署指南](docs/DEPLOYMENT.md)
+**文档**: [安装指南](docs/INSTALL.md) | [架构文档](docs/ARCHITECTURE.md) | [部署指南](docs/DEPLOYMENT.md) | [依赖说明](docs/dependencies.md)
 
 ---
 
@@ -138,11 +138,12 @@ OrionXCore 与 **OpenAI Codex**、**Claude Code**、**GitHub Copilot** 等工具
 - OpenAI 兼容的 `/chat/completions` 客户端
 - Agent 循环：支持工具调用直到完成
 - Terminal Tool：基础风险控制与命令执行
-- Database Tool：支持 ClickHouse
-- Filesystem Tool：文件读写、目录列表、搜索
+- Database Tool：支持 ClickHouse，Text-to-SQL 工作流
+- Filesystem Tool：文件读写、目录操作、路径沙盒
+- Metrics Tool：业务指标查询与分析
+- Alert Tool：告警查询（PostgreSQL/OpenGauss）
+- Chart Tool：数据可视化
 - 环境变量驱动的配置
-
----
 
 ## 快速开始
 
@@ -189,19 +190,36 @@ http://127.0.0.1:8080/playground
 
 ### 核心配置
 
-- `ORIONXCORE_MODEL`
-- `ORIONXCORE_API_KEY`
-- `ORIONXCORE_API_BASE_URL`
+- `ORIONXCORE_MODEL` - 模型名称
+- `ORIONXCORE_API_KEY` - API密钥
+- `ORIONXCORE_API_BASE_URL` - API基础URL
 
 ### 工具配置
 
-- `ORIONXCORE_ENABLE_TERMINAL`
-- `ORIONXCORE_ENABLE_DATABASE`
-- `ORIONXCORE_DATABASE_URL`
-- `ORIONXCORE_ALLOW_RISKY_COMMANDS`
-- `ORIONXCORE_ENABLE_FILESYSTEM`
-- `ORIONXCORE_FILESYSTEM_ALLOW_WRITE`
-- `ORIONXCORE_FILESYSTEM_ALLOW_DELETE`
+**Terminal工具：**
+- `ORIONXCORE_ENABLE_TERMINAL` - 启用终端工具
+- `ORIONXCORE_TERMINAL_WORKDIR` - 工作目录
+- `ORIONXCORE_ALLOW_RISKY_COMMANDS` - 允许风险命令
+
+**Database工具：**
+- `ORIONXCORE_ENABLE_DATABASE` - 启用数据库工具
+- `ORIONXCORE_DATABASE_URL` - ClickHouse连接URL
+
+**Metrics工具：**
+- `ORIONXCORE_ENABLE_METRICS` - 启用指标工具
+- `ORIONXCORE_METRICS_DATABASE_URL` - ClickHouse连接URL
+- `ORIONXCORE_METRICS_TIMEZONE` - 时区设置
+
+**Alert工具：**
+- `ORIONXCORE_ENABLE_ALERT` - 启用告警工具
+- `ORIONXCORE_ALERT_DATABASE_URL` - PostgreSQL/OpenGauss连接URL
+
+**Filesystem工具：**
+- `ORIONXCORE_ENABLE_FILESYSTEM` - 启用文件系统工具
+- `ORIONXCORE_FILESYSTEM_ALLOW_WRITE` - 允许写入
+- `ORIONXCORE_FILESYSTEM_ALLOW_DELETE` - 允许删除
+
+详细配置请参考 [.env.example](.env.example) 和 [安装文档](docs/INSTALL.md)。
 
 ---
 

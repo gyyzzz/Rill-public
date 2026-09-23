@@ -13,7 +13,7 @@ OrionXCore is a lightweight, configurable AI coding agent service. Configure the
 
 Chinese documentation: [README_zh.md](README_zh.md)
 
-**Documentation**: [Architecture](docs/ARCHITECTURE.md) | [Deployment](docs/DEPLOYMENT.md)
+**Documentation**: [Installation](docs/INSTALL.md) | [Architecture](docs/ARCHITECTURE.md) | [Deployment](docs/DEPLOYMENT.md) | [Dependencies](docs/dependencies.md)
 
 ---
 
@@ -141,7 +141,11 @@ This initial scaffold includes:
 - OpenAI-compatible chat-completions client
 - Agent loop that supports tool-calling until completion
 - Terminal tool with basic risk controls and command execution
-- Database tool for ClickHouse
+- Database tool for ClickHouse with Text-to-SQL workflow
+- Filesystem tool with sandboxed file operations
+- Metrics tool for business indicators query and analysis
+- Alert tool for querying alerts from PostgreSQL/OpenGauss
+- Chart tool for data visualization
 - Environment-driven configuration
 
 ## Quick Start
@@ -187,19 +191,36 @@ http://127.0.0.1:8080/playground
 
 Core settings:
 
-- `ORIONXCORE_MODEL`
-- `ORIONXCORE_API_KEY`
-- `ORIONXCORE_API_BASE_URL`
+- `ORIONXCORE_MODEL` - Model name
+- `ORIONXCORE_API_KEY` - API key
+- `ORIONXCORE_API_BASE_URL` - API base URL
 
-Optional tool settings:
+Tool settings:
 
-- `ORIONXCORE_ENABLE_TERMINAL`
-- `ORIONXCORE_ENABLE_DATABASE`
-- `ORIONXCORE_DATABASE_URL`
-- `ORIONXCORE_ALLOW_RISKY_COMMANDS`
-- `ORIONXCORE_ENABLE_FILESYSTEM`
-- `ORIONXCORE_FILESYSTEM_ALLOW_WRITE`
-- `ORIONXCORE_FILESYSTEM_ALLOW_DELETE`
+**Terminal tool:**
+- `ORIONXCORE_ENABLE_TERMINAL` - Enable terminal tool
+- `ORIONXCORE_TERMINAL_WORKDIR` - Working directory
+- `ORIONXCORE_ALLOW_RISKY_COMMANDS` - Allow risky commands
+
+**Database tool:**
+- `ORIONXCORE_ENABLE_DATABASE` - Enable database tool
+- `ORIONXCORE_DATABASE_URL` - ClickHouse connection URL
+
+**Metrics tool:**
+- `ORIONXCORE_ENABLE_METRICS` - Enable metrics tool
+- `ORIONXCORE_METRICS_DATABASE_URL` - ClickHouse connection URL
+- `ORIONXCORE_METRICS_TIMEZONE` - Timezone setting
+
+**Alert tool:**
+- `ORIONXCORE_ENABLE_ALERT` - Enable alert tool
+- `ORIONXCORE_ALERT_DATABASE_URL` - PostgreSQL/OpenGauss connection URL
+
+**Filesystem tool:**
+- `ORIONXCORE_ENABLE_FILESYSTEM` - Enable filesystem tool
+- `ORIONXCORE_FILESYSTEM_ALLOW_WRITE` - Allow write operations
+- `ORIONXCORE_FILESYSTEM_ALLOW_DELETE` - Allow delete operations
+
+See [.env.example](.env.example) and [Installation Guide](docs/INSTALL.md) for detailed configuration.
 
 ## API
 
