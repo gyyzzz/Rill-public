@@ -11,3 +11,4 @@ src/*.egg-info/
 start.sh
 workspace/
 docs/
+scripts/

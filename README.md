@@ -13,7 +13,7 @@ OrionXCore is a lightweight, configurable AI coding agent service. Configure the
 
 Chinese documentation: [README_zh.md](README_zh.md)
 
-**Documentation**: [Installation](docs/INSTALL.md) | [Architecture](docs/ARCHITECTURE.md) | [Deployment](docs/DEPLOYMENT.md) | [Dependencies](docs/dependencies.md)
+**Documentation**: [Installation](docs/INSTALL.md) | [Architecture](docs/ARCHITECTURE.md) | [Dependencies](docs/dependencies.md)
 
 ---
 

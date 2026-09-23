@@ -13,7 +13,7 @@ OrionXCore 是一个轻量级、可配置的 AI 编程代理服务。只需要�
 
 英文文档: [README.md](README.md)
 
-**文档**: [安装指南](docs/INSTALL.md) | [架构文档](docs/ARCHITECTURE.md) | [部署指南](docs/DEPLOYMENT.md) | [依赖说明](docs/dependencies.md)
+**文档**: [安装指南](docs/INSTALL.md) | [架构文档](docs/ARCHITECTURE.md) | [依赖说明](docs/dependencies.md)
 
 ---
 
