@@ -163,7 +163,8 @@ pip install -e .
 2. Copy the environment template and fill in your model settings:
 
 ```bash
-cp .env.example .env
+cp config.toml.example config.toml
+export ORIONXCORE_LLM__API_KEY=your_api_key
 ```
 
 3. Start the service:
@@ -189,38 +190,26 @@ http://127.0.0.1:8080/playground
 
 ## Configuration
 
-Core settings:
+Copy the template and edit the TOML file:
 
-- `ORIONXCORE_MODEL` - Model name
-- `ORIONXCORE_API_KEY` - API key
-- `ORIONXCORE_API_BASE_URL` - API base URL
+```bash
+cp config.toml.example config.toml
+```
 
-Tool settings:
+`config.toml` is the main configuration source. Environment variables override
+the file and use a double underscore for nested fields. Keep secrets such as
+the API key in the environment:
 
-**Terminal tool:**
-- `ORIONXCORE_ENABLE_TERMINAL` - Enable terminal tool
-- `ORIONXCORE_TERMINAL_WORKDIR` - Working directory
-- `ORIONXCORE_ALLOW_RISKY_COMMANDS` - Allow risky commands
+```bash
+export ORIONXCORE_LLM__API_KEY=your_api_key
+export ORIONXCORE_LLM__MODEL=gpt-4.1-mini
+```
 
-**Database tool:**
-- `ORIONXCORE_ENABLE_DATABASE` - Enable database tool
-- `ORIONXCORE_DATABASE_URL` - ClickHouse connection URL
-
-**Metrics tool:**
-- `ORIONXCORE_ENABLE_METRICS` - Enable metrics tool
-- `ORIONXCORE_METRICS_DATABASE_URL` - ClickHouse connection URL
-- `ORIONXCORE_METRICS_TIMEZONE` - Timezone setting
-
-**Alert tool:**
-- `ORIONXCORE_ENABLE_ALERT` - Enable alert tool
-- `ORIONXCORE_ALERT_DATABASE_URL` - PostgreSQL/OpenGauss connection URL
-
-**Filesystem tool:**
-- `ORIONXCORE_ENABLE_FILESYSTEM` - Enable filesystem tool
-- `ORIONXCORE_FILESYSTEM_ALLOW_WRITE` - Allow write operations
-- `ORIONXCORE_FILESYSTEM_ALLOW_DELETE` - Allow delete operations
-
-See [.env.example](.env.example) and [Installation Guide](docs/INSTALL.md) for detailed configuration.
+The optional `ORIONXCORE_CONFIG_FILE` variable selects another TOML file.
+Configuration is loaded at startup; restart the service after changing it.
+The previous flat `ORIONXCORE_MODEL` style variables are no longer read.
+See [config.toml.example](config.toml.example), [.env.example](.env.example),
+and [Installation Guide](docs/INSTALL.md) for the complete reference.
 
 ## API
 
@@ -329,24 +318,24 @@ The database tool currently supports ClickHouse only.
 - Use a ClickHouse SQLAlchemy URL such as `clickhousedb://username:password@localhost:8123/default`
 - Queries are read-only by default
 - Only single-statement read-only SQL is allowed
-- Result rows are capped by `ORIONXCORE_DATABASE_MAX_ROWS`
-- Query timeout is controlled by `ORIONXCORE_DATABASE_QUERY_TIMEOUT_SECONDS`
+- Result rows are capped by `database.max_rows` in `config.toml`
+- Query timeout is controlled by `database.query_timeout_seconds`
 - Schema introspection supports `list_tables` and `describe_table`
 - Natural-language querying now supports a minimal `text_to_sql` flow with one automatic retry on SQL errors
-- `ORIONXCORE_DATABASE_ALLOWED_DATABASES` can restrict schema discovery and Text-to-SQL context to an approved database whitelist
+- `database.allowed_databases` can restrict schema discovery and Text-to-SQL context to an approved database whitelist
 - `text_to_sql` responses include trace metadata such as schema context, generated SQL, retry reason, and final SQL
 
-By default, mutation statements are blocked. Enable `ORIONXCORE_DATABASE_ALLOW_MUTATION=true` only when that is explicitly desired.
+By default, mutation statements are blocked. Enable `database.allow_mutation = true` only when that is explicitly desired.
 
 ## Filesystem Notes
 
 The filesystem tool provides safe file operations within a configured workspace.
 
-- Enable with `ORIONXCORE_ENABLE_FILESYSTEM=true`
+- Enable with `filesystem.enabled = true`
 - Operations: `read_file`, `write_file`, `append_file`, `list_dir`, `make_dir`, `delete_file`, `move`, `stat`, `search`
-- Path traversal protection: only allows operations within `ORIONXCORE_FILESYSTEM_WORKDIR` (defaults to `ORIONXCORE_TERMINAL_WORKDIR`)
-- Read/write size limits: `ORIONXCORE_FILESYSTEM_MAX_READ_BYTES` and `ORIONXCORE_FILESYSTEM_MAX_WRITE_BYTES` (default 1 MiB)
-- Write/delete permissions controlled separately via `ORIONXCORE_FILESYSTEM_ALLOW_WRITE` and `ORIONXCORE_FILESYSTEM_ALLOW_DELETE`
+- Path traversal protection only allows operations within `filesystem.workdir` (or the terminal workdir when it is empty)
+- Read/write size limits use `filesystem.max_read_bytes` and `filesystem.max_write_bytes` (default 1 MiB)
+- Write/delete permissions are controlled separately via `filesystem.allow_write` and `filesystem.allow_delete`
 
 ## Next Build Steps
 

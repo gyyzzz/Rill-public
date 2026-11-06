@@ -34,10 +34,10 @@ def get_agent_service(
 @router.get("/health")
 async def health(settings: Settings = Depends(get_settings)) -> dict[str, str | bool]:
     return {
-        "name": settings.app_name,
+        "name": settings.server.app_name,
         "status": "ok",
-        "terminal_enabled": settings.enable_terminal,
-        "database_enabled": settings.enable_database,
+        "terminal_enabled": settings.terminal.enabled,
+        "database_enabled": settings.database.enabled,
     }
 
 
@@ -52,12 +52,12 @@ async def upload_file(
     file: UploadFile = File(...),
     settings: Settings = Depends(get_settings),
 ) -> UploadResponse:
-    if not settings.enable_upload:
+    if not settings.upload.enabled:
         raise HTTPException(status_code=403, detail="File upload is disabled.")
 
     # Check file size
     content = await file.read()
-    max_bytes = settings.upload_max_size_mb * 1024 * 1024
+    max_bytes = settings.upload.max_size_mb * 1024 * 1024
     if len(content) > max_bytes:
         raise HTTPException(
             status_code=413,
@@ -67,7 +67,7 @@ async def upload_file(
     # Check extension
     original_name = file.filename or "unnamed"
     suffix = Path(original_name).suffix.lower()
-    allowed = {ext.strip().lower() for ext in settings.upload_allowed_extensions.split(",")}
+    allowed = {ext.strip().lower() for ext in settings.upload.allowed_extensions}
     if suffix and allowed and suffix not in allowed:
         raise HTTPException(
             status_code=400,
@@ -80,10 +80,10 @@ async def upload_file(
         safe_name = f"upload_{int(__import__('time').time())}{suffix or ''}"
 
     # Resolve destination directory
-    if settings.upload_workdir:
-        base = settings.upload_workdir.resolve()
+    if settings.upload.workdir:
+        base = settings.upload.workdir.resolve()
     else:
-        workspace_root = settings.filesystem_workdir or settings.terminal_workdir
+        workspace_root = settings.filesystem.workdir or settings.terminal.workdir
         base = (workspace_root / "uploads").resolve()
 
     destination = (base / safe_name).resolve()
@@ -111,12 +111,12 @@ async def serve_workspace_file(
 ) -> FileResponse:
     """Serve files from the workspace directory (charts, uploads, etc.)."""
     # Determine workspace root
-    if settings.upload_workdir:
-        base = settings.upload_workdir.resolve()
-    elif settings.filesystem_workdir:
-        base = settings.filesystem_workdir.resolve()
+    if settings.upload.workdir:
+        base = settings.upload.workdir.resolve()
+    elif settings.filesystem.workdir:
+        base = settings.filesystem.workdir.resolve()
     else:
-        base = (settings.terminal_workdir / "workspace").resolve()
+        base = (settings.terminal.workdir / "workspace").resolve()
 
     # Resolve requested path and ensure it's within workspace
     requested = (base / filepath).resolve()

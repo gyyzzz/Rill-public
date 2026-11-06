@@ -57,12 +57,12 @@ class ToolRegistry:
 
 def build_registry(settings: Settings) -> ToolRegistry:
     tools: list[Tool] = []
-    if settings.enable_terminal:
+    if settings.terminal.enabled:
         tools.append(TerminalTool(settings))
-    if settings.enable_database:
+    if settings.database.enabled:
         tools.append(DatabaseTool(settings))
-    if settings.enable_filesystem:
+    if settings.filesystem.enabled:
         tools.append(FileSystemTool(settings))
-    if settings.enable_chart:
+    if settings.chart.enabled:
         tools.append(ChartTool(settings))
     return ToolRegistry(tools)

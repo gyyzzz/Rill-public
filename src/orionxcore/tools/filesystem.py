@@ -118,12 +118,12 @@ class FileSystemTool(Tool):
             return {"ok": False, "error": f"Not a file: {path}"}
 
         size = path.stat().st_size
-        if size > self._settings.filesystem_max_read_bytes:
+        if size > self._settings.filesystem.max_read_bytes:
             return {
                 "ok": False,
                 "error": (
                     f"File too large: {size} bytes exceeds limit "
-                    f"{self._settings.filesystem_max_read_bytes}."
+                    f"{self._settings.filesystem.max_read_bytes}."
                 ),
             }
 
@@ -150,7 +150,7 @@ class FileSystemTool(Tool):
         }
 
     def _write_file(self, arguments: dict[str, Any]) -> dict[str, Any]:
-        if not self._settings.filesystem_allow_write:
+        if not self._settings.filesystem.allow_write:
             return {"ok": False, "error": "Filesystem write operations are disabled."}
 
         path = self._resolve_path(arguments.get("path"))
@@ -188,7 +188,7 @@ class FileSystemTool(Tool):
         }
 
     def _append_file(self, arguments: dict[str, Any]) -> dict[str, Any]:
-        if not self._settings.filesystem_allow_write:
+        if not self._settings.filesystem.allow_write:
             return {"ok": False, "error": "Filesystem write operations are disabled."}
 
         path = self._resolve_path(arguments.get("path"))
@@ -227,8 +227,8 @@ class FileSystemTool(Tool):
             return {"ok": False, "error": f"Not a directory: {path}"}
 
         recursive = bool(arguments.get("recursive", False))
-        limit = int(arguments.get("limit") or self._settings.filesystem_max_list_entries)
-        limit = min(limit, self._settings.filesystem_max_list_entries)
+        limit = int(arguments.get("limit") or self._settings.filesystem.max_list_entries)
+        limit = min(limit, self._settings.filesystem.max_list_entries)
 
         entries: list[dict[str, Any]] = []
         iterator = path.rglob("*") if recursive else path.iterdir()
@@ -260,7 +260,7 @@ class FileSystemTool(Tool):
         }
 
     def _make_dir(self, arguments: dict[str, Any]) -> dict[str, Any]:
-        if not self._settings.filesystem_allow_write:
+        if not self._settings.filesystem.allow_write:
             return {"ok": False, "error": "Filesystem write operations are disabled."}
 
         path = self._resolve_path(arguments.get("path"))
@@ -272,7 +272,7 @@ class FileSystemTool(Tool):
         return {"ok": True, "path": str(path), "created": True}
 
     def _delete_file(self, arguments: dict[str, Any]) -> dict[str, Any]:
-        if not self._settings.filesystem_allow_delete:
+        if not self._settings.filesystem.allow_delete:
             return {
                 "ok": False,
                 "error": "Filesystem delete operations are disabled.",
@@ -301,7 +301,7 @@ class FileSystemTool(Tool):
         return {"ok": True, "path": str(path), "deleted": True}
 
     def _move(self, arguments: dict[str, Any]) -> dict[str, Any]:
-        if not self._settings.filesystem_allow_write:
+        if not self._settings.filesystem.allow_write:
             return {"ok": False, "error": "Filesystem write operations are disabled."}
 
         source = self._resolve_path(arguments.get("path"))
@@ -363,8 +363,8 @@ class FileSystemTool(Tool):
         if not base.exists() or not base.is_dir():
             return {"ok": False, "error": f"Search base is not a directory: {base}"}
 
-        limit = int(arguments.get("limit") or self._settings.filesystem_max_list_entries)
-        limit = min(limit, self._settings.filesystem_max_list_entries)
+        limit = int(arguments.get("limit") or self._settings.filesystem.max_list_entries)
+        limit = min(limit, self._settings.filesystem.max_list_entries)
 
         matches: list[str] = []
         for entry in base.glob(pattern):
@@ -382,7 +382,7 @@ class FileSystemTool(Tool):
         }
 
     def _workspace_root(self) -> Path:
-        root = self._settings.filesystem_workdir or self._settings.terminal_workdir
+        root = self._settings.filesystem.workdir or self._settings.terminal.workdir
         return Path(root).resolve()
 
     def _resolve_path(self, raw: str | None) -> Path | dict[str, Any]:
@@ -402,12 +402,12 @@ class FileSystemTool(Tool):
             size = len(content.encode(encoding))
         except (LookupError, UnicodeEncodeError) as exc:
             return {"ok": False, "error": f"Encoding error: {exc}"}
-        if size > self._settings.filesystem_max_write_bytes:
+        if size > self._settings.filesystem.max_write_bytes:
             return {
                 "ok": False,
                 "error": (
                     f"Content too large: {size} bytes exceeds limit "
-                    f"{self._settings.filesystem_max_write_bytes}."
+                    f"{self._settings.filesystem.max_write_bytes}."
                 ),
             }
         return None

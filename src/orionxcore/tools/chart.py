@@ -57,7 +57,7 @@ def _configure_chinese_font(custom_family: str = "") -> None:
     else:
         logger.warning(
             "未找到可用的中文字体，图表中的中文可能显示为乱码。"
-            "请安装中文字体或通过 ORIONXCORE_CHART_FONT_FAMILY 指定。"
+            "请安装中文字体或通过 ORIONXCORE_CHART__FONT_FAMILY 指定。"
         )
 
     # 解决负号显示为方块的问题
@@ -138,7 +138,7 @@ class ChartTool(Tool):
 
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
-        _configure_chinese_font(settings.chart_font_family)
+        _configure_chinese_font(settings.chart.font_family)
 
     async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:
         chart_type = arguments.get("chart_type")
@@ -188,9 +188,9 @@ class ChartTool(Tool):
         requested_width = int(arguments.get("width") or 800)
         requested_height = int(arguments.get("height") or 600)
 
-        width = min(requested_width, self._settings.chart_max_width)
-        height = min(requested_height, self._settings.chart_max_height)
-        dpi = self._settings.chart_default_dpi
+        width = min(requested_width, self._settings.chart.max_width)
+        height = min(requested_height, self._settings.chart.max_height)
+        dpi = self._settings.chart.default_dpi
 
         fig_width = width / dpi
         fig_height = height / dpi
@@ -339,12 +339,12 @@ class ChartTool(Tool):
             ax.legend()
 
     def _resolve_output_path(self, filename: str | None) -> Path:
-        if self._settings.chart_workdir:
-            base = self._settings.chart_workdir.resolve()
-        elif self._settings.filesystem_workdir:
-            base = (self._settings.filesystem_workdir / "charts").resolve()
+        if self._settings.chart.workdir:
+            base = self._settings.chart.workdir.resolve()
+        elif self._settings.filesystem.workdir:
+            base = (self._settings.filesystem.workdir / "charts").resolve()
         else:
-            base = (self._settings.terminal_workdir / "workspace" / "charts").resolve()
+            base = (self._settings.terminal.workdir / "workspace" / "charts").resolve()
 
         if not filename:
             timestamp = int(time.time())

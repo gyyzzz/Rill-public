@@ -1,0 +1,26 @@
+services:
+  orionxcore:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: orionxcore:0.2.0
+    env_file:
+      - ../.env
+    ports:
+      - "8080:8080"
+    environment:
+      - ORIONXCORE_TERMINAL__ENABLED=true
+      - ORIONXCORE_FILESYSTEM__ENABLED=true
+      - ORIONXCORE_TERMINAL__WORKDIR=/workspace
+      - ORIONXCORE_FILESYSTEM__WORKDIR=/workspace
+      - ORIONXCORE_FILESYSTEM__ALLOW_WRITE=true
+      - ORIONXCORE_FILESYSTEM__ALLOW_DELETE=false
+    volumes:
+      - ../config.toml:/app/config.toml:ro
+      - ../workspace:/workspace
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

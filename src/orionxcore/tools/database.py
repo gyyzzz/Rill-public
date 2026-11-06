@@ -55,7 +55,7 @@ class DatabaseTool(Tool):
         self._logger = logging.getLogger(__name__)
 
     async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:
-        database_url = self._settings.database_url
+        database_url = self._settings.database.url
         if not database_url:
             return {"ok": False, "error": "Database is not configured."}
         if not self._is_clickhouse_url(database_url):
@@ -83,12 +83,12 @@ class DatabaseTool(Tool):
             return validation_error
 
         limit = min(
-            int(arguments.get("limit") or self._settings.database_max_rows),
-            self._settings.database_max_rows,
+            int(arguments.get("limit") or self._settings.database.max_rows),
+            self._settings.database.max_rows,
         )
         self._logger.info(f"执行 SQL: {statement[:200]}...")
         try:
-            engine = create_engine(self._settings.database_url)
+            engine = create_engine(self._settings.database.url)
             with engine.connect() as connection:
                 self._apply_query_timeout(connection)
                 result = connection.execute(text(statement))
@@ -232,10 +232,10 @@ class DatabaseTool(Tool):
         arguments: dict[str, Any],
     ) -> dict[str, Any]:
         limit = min(
-            int(arguments.get("limit") or self._settings.database_max_rows),
-            self._settings.database_max_rows,
+            int(arguments.get("limit") or self._settings.database.max_rows),
+            self._settings.database.max_rows,
         )
-        engine = create_engine(self._settings.database_url)
+        engine = create_engine(self._settings.database.url)
         with engine.connect() as connection:
             self._apply_query_timeout(connection)
             result = connection.execute(text(statement), params)
@@ -315,7 +315,7 @@ class DatabaseTool(Tool):
                 {"role": "user", "content": user_prompt},
             ],
             tools=[],
-            model=self._settings.model,
+            model=self._settings.llm.model,
             temperature=0,
         )
         return self._normalize_sql(response.content)
@@ -345,7 +345,7 @@ class DatabaseTool(Tool):
         allowed_prefixes = ("select", "show", "describe", "desc", "explain", "with")
         if not lowered.startswith(allowed_prefixes):
             return {"ok": False, "error": "Only read-only ClickHouse statements are allowed."}
-        if not self._settings.database_allow_mutation and self._looks_mutating(lowered):
+        if not self._settings.database.allow_mutation and self._looks_mutating(lowered):
             return {
                 "ok": False,
                 "error": "Mutation statements are blocked by configuration.",
@@ -359,14 +359,11 @@ class DatabaseTool(Tool):
         return ";" in statement.rstrip(";")
 
     def _apply_query_timeout(self, connection: Any) -> None:
-        timeout_seconds = max(int(self._settings.database_query_timeout_seconds), 1)
+        timeout_seconds = max(int(self._settings.database.query_timeout_seconds), 1)
         connection.execute(text(f"SET max_execution_time = {timeout_seconds}"))
 
     def _allowed_databases(self) -> list[str]:
-        raw = self._settings.database_allowed_databases.strip()
-        if not raw:
-            return []
-        return [item.strip() for item in raw.split(",") if item.strip()]
+        return self._settings.database.allowed_databases
 
     def _is_database_allowed(self, database: str) -> bool:
         allowed = self._allowed_databases()

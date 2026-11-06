@@ -1,0 +1,62 @@
+config_file = "./config.toml"
+
+[server]
+app_name = "OrionXCore"
+host = "0.0.0.0"
+port = 8080
+
+[llm]
+model = "gpt-4.1-mini"
+api_base_url = "https://api.openai.com/v1"
+http_timeout = 120
+# Keep api_key in an environment variable: ORIONXCORE_LLM__API_KEY
+
+[agent]
+system_prompt = "You are OrionXCore, a lightweight AI coding agent."
+max_iterations = 6
+max_concurrent_requests = 4
+queue_timeout_seconds = 5.0
+
+[logging]
+level = "INFO"
+format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+# file = "./logs/orionxcore.log"
+
+[terminal]
+enabled = true
+workdir = "."
+timeout_seconds = 30
+allow_risky_commands = false
+require_confirmation = false
+
+[database]
+enabled = false
+url = ""
+max_rows = 200
+query_timeout_seconds = 30
+allow_mutation = false
+allowed_databases = []
+
+[filesystem]
+enabled = false
+allow_write = true
+allow_delete = false
+max_read_bytes = 1048576
+max_write_bytes = 1048576
+max_list_entries = 500
+
+[chart]
+enabled = true
+max_width = 1920
+max_height = 1080
+default_dpi = 100
+font_family = ""
+
+[upload]
+enabled = true
+max_size_mb = 10
+allowed_extensions = [
+  ".txt", ".csv", ".json", ".md", ".py", ".log", ".yaml", ".yml",
+  ".xml", ".html", ".js", ".ts", ".sql", ".sh", ".cfg", ".ini",
+  ".conf", ".toml", ".rst"
+]

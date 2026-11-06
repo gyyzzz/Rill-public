@@ -222,14 +222,14 @@ class AgentService:
                     for call in valid_tool_calls
                 ],
                 finish_reason="tool_calls",
-                model=request.model or self._settings.model,
+                model=request.model or self._settings.llm.model,
                 reasoning_content=llm_response.raw_message.get("reasoning_content"),
             )
         return ChatCompletionTurnResult(
             content=llm_response.content,
             tool_calls=[],
             finish_reason="stop",
-            model=request.model or self._settings.model,
+            model=request.model or self._settings.llm.model,
             reasoning_content=llm_response.raw_message.get("reasoning_content"),
         )
 
@@ -247,7 +247,7 @@ class AgentService:
         tools = registry.as_openai_tools()
         logger.debug(f"可用工具: {[t['function']['name'] for t in tools]}")
 
-        for iteration in range(1, self._settings.max_iterations + 1):
+        for iteration in range(1, self._settings.agent.max_iterations + 1):
             logger.info(f"迭代 #{iteration}")
             emit(AgentEvent(type="iteration", payload={"iteration": iteration}))
             llm_response = await self._client.complete(
@@ -312,14 +312,14 @@ class AgentService:
             emit(AgentEvent(type="assistant", payload={"content": llm_response.content}))
             return final_message, iteration
 
-        logger.warning(f"达到最大迭代次数 {self._settings.max_iterations}")
+        logger.warning(f"达到最大迭代次数 {self._settings.agent.max_iterations}")
         content = (
             "The agent stopped because the maximum iteration count was reached before a final "
             "answer was produced."
         )
         final_message = ChatMessage(role="assistant", content=content)
         emit(AgentEvent(type="assistant", payload={"content": content}))
-        return final_message, self._settings.max_iterations
+        return final_message, self._settings.agent.max_iterations
 
     def _build_messages(self, request: AgentRequest) -> list[dict[str, Any]]:
         return self._build_messages_with_options(request, include_system_prompt=True)
@@ -357,7 +357,7 @@ class AgentService:
         return messages
 
     def _system_prompt(self) -> str:
-        prompt = self._settings.system_prompt + "\nUse tools when they help. Explain risky actions before requesting them."
+        prompt = self._settings.agent.system_prompt + "\nUse tools when they help. Explain risky actions before requesting them."
         if any(tool.name == "alert_query" for tool in self._registry.describe()):
             prompt += (
                 "\nWhen using alert_query, follow these rules: if the user provides no time, call it without "

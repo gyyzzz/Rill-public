@@ -44,7 +44,7 @@ class TerminalTool(Tool):
         command = (arguments.get("command") or "").strip()
         if not command:
             return {"ok": False, "error": "Missing command."}
-        if self._is_risky(command) and not self._settings.allow_risky_commands:
+        if self._is_risky(command) and not self._settings.terminal.allow_risky_commands:
             self._logger.warning(f"阻止风险命令: {command}")
             return {
                 "ok": False,
@@ -53,7 +53,7 @@ class TerminalTool(Tool):
             }
 
         workdir = self._resolve_workdir(arguments.get("workdir"))
-        timeout = int(arguments.get("timeout") or self._settings.terminal_timeout)
+        timeout = int(arguments.get("timeout") or self._settings.terminal.timeout_seconds)
         self._logger.info(f"执行命令: {command}, workdir: {workdir}, timeout: {timeout}s")
         try:
             process = await asyncio.create_subprocess_shell(
@@ -80,7 +80,7 @@ class TerminalTool(Tool):
         }
 
     def _resolve_workdir(self, workdir: str | None) -> Path:
-        base = self._settings.terminal_workdir.resolve()
+        base = self._settings.terminal.workdir.resolve()
         if not workdir:
             return base
         candidate = (base / workdir).resolve()

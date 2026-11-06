@@ -38,7 +38,7 @@ class OpenAICompatibleClient:
         stop: str | list[str] | None = None,
     ) -> LLMResponse:
         payload = {
-            "model": model or self._settings.model,
+            "model": model or self._settings.llm.model,
             "messages": messages,
             "tools": tools,
             "tool_choice": tool_choice if tool_choice is not None else ("auto" if tools else "none"),
@@ -54,14 +54,14 @@ class OpenAICompatibleClient:
         if stop is not None:
             payload["stop"] = stop
         headers = {
-            "Authorization": f"Bearer {self._settings.api_key}",
+            "Authorization": f"Bearer {self._settings.llm.api_key}",
             "Content-Type": "application/json",
         }
-        timeout = httpx.Timeout(self._settings.http_timeout)
+        timeout = httpx.Timeout(self._settings.llm.http_timeout)
 
         async with httpx.AsyncClient(timeout=timeout, proxy=None) as client:
             response = await client.post(
-                f"{self._settings.api_base_url.rstrip('/')}/chat/completions",
+                f"{self._settings.llm.api_base_url.rstrip('/')}/chat/completions",
                 headers=headers,
                 json=payload,
             )
