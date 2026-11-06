@@ -107,6 +107,13 @@ uv run rill ask "列出当前工作区中的文件。"
 uv run rill chat
 ```
 
+`rill chat` 在工具需要审批时会显示工具名称并询问 `y/N`；输入 `y` 后会重试
+当前轮次并执行该工具。也可以在启动 chat 时预批准工具：
+
+```bash
+uv run rill chat --approve-tool run_terminal_command --approve-tool filesystem
+```
+
 也可以用 `uv run uvicorn rill.main:app --host 0.0.0.0 --port 8080` 启动；
 这时监听地址由 Uvicorn 参数决定。
 

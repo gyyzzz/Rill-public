@@ -78,17 +78,18 @@ uv run rill ask \
 ```
 
 `rill chat` sends the complete message history for the current session on each
-turn. Use `--approve-tool` when starting chat to approve a tool for every turn:
+turn. When the server returns `requires_approval`, it prompts for `y/N` and
+retries the same turn with the approved tool. Use `--approve-tool` when starting
+chat to approve a tool for every turn:
 
 ```bash
 uv run rill chat --approve-tool run_terminal_command --approve-tool filesystem
 ```
 
 For HTTP clients, include tool names in `approved_tools` on every Agent request.
-An interactive approval prompt is a client responsibility: a client can retry
-the request with the same messages and the requested approval after showing the
-tool call to a user. The server never treats a previous request's approval as a
-future grant.
+An HTTP client that wants an interactive flow should inspect `tool_result` events,
+ask its user, and retry the same messages with the requested approval. The server
+never treats a previous request's approval as a future grant.
 
 The OpenAI-compatible `/v1/chat/completions` endpoint does not run tools on the
 server. The client must execute returned tool calls and send tool results back;

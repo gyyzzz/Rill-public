@@ -117,7 +117,8 @@ curl -sS -X POST "$RILL_URL/v1/agent/respond" \
 
 文件系统的读取操作通常不需要审批；写入、删除、移动和创建目录需要
 `filesystem`。终端工具默认需要 `run_terminal_command`。审批只对当前请求有效。
-客户端应在展示工具调用后，使用相同消息重新请求并填入审批列表。
+`rill chat` 会在终端展示审批提示；其他客户端应在展示工具调用后，使用相同
+消息重新请求并填入审批列表。
 
 响应包含 `message`、`events`、`iterations`、`session_id`、`request_id`、
 `provider`、`model`、`execution_mode` 和 `stop_reason`。事件包括模型调用、工具

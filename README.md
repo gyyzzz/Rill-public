@@ -102,6 +102,13 @@ curl http://127.0.0.1:8080/health/ready
 open http://127.0.0.1:8080/playground
 ```
 
+When a tool needs approval, `rill chat` prompts with `y/N` and retries the
+current turn after confirmation. Pre-approve tools for every turn at startup:
+
+```bash
+uv run rill chat --approve-tool run_terminal_command --approve-tool filesystem
+```
+
 Replace `replace-me` with an API key for the provider in `config.toml`.
 
 ### Docker

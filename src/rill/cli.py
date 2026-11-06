@@ -247,17 +247,29 @@ def run_chat(args: argparse.Namespace) -> int:
             return 0
 
         turn_messages = messages + [{"role": "user", "content": prompt}]
-        response = post_json(
-            base_url=base_url,
-            path="/v1/agent/respond",
-            payload={
-                "messages": turn_messages,
-                "session_id": session_id,
-                "approved_tools": args.approve_tool,
-            },
-            timeout=args.timeout,
-            api_key=os.environ.get("RILL_API_KEY"),
-        )
+        approved_tools = list(dict.fromkeys(args.approve_tool))
+        while True:
+            response = post_json(
+                base_url=base_url,
+                path="/v1/agent/respond",
+                payload={
+                    "messages": turn_messages,
+                    "session_id": session_id,
+                    "approved_tools": approved_tools,
+                },
+                timeout=args.timeout,
+                api_key=os.environ.get("RILL_API_KEY"),
+            )
+            pending_tools = [
+                name for name in _approval_requests(response)
+                if name not in approved_tools
+            ]
+            if not pending_tools:
+                break
+            newly_approved = _prompt_for_tool_approval(pending_tools)
+            if not newly_approved:
+                break
+            approved_tools.extend(name for name in newly_approved if name not in approved_tools)
         messages = turn_messages + [{"role": "assistant", "content": response["message"]["content"]}]
 
         if args.raw:
@@ -280,6 +292,37 @@ def post_json(base_url: str, path: str, payload: dict[str, Any], timeout: float,
     except httpx.HTTPError as exc:
         print(f"Request failed: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc
+
+
+def _approval_requests(response: dict[str, Any]) -> list[str]:
+    """Return tools rejected by the server because this request lacked approval."""
+    names: list[str] = []
+    for event in response.get("events") or []:
+        if event.get("type") != "tool_result":
+            continue
+        payload = event.get("payload") or {}
+        result = payload.get("result") or {}
+        if result.get("requires_approval") and payload.get("name"):
+            name = str(payload["name"])
+            if name not in names:
+                names.append(name)
+    return names
+
+
+def _prompt_for_tool_approval(tool_names: list[str]) -> list[str]:
+    """Ask for approval for the current chat turn."""
+    approved: list[str] = []
+    for name in tool_names:
+        try:
+            answer = input(f"Approve tool '{name}' for this turn? [y/N] ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            print("")
+            return approved
+        if answer in {"y", "yes"}:
+            approved.append(name)
+        else:
+            break
+    return approved
 
 
 def _config_path(args: argparse.Namespace) -> Path:

@@ -7,7 +7,7 @@ import httpx
 from fastapi.testclient import TestClient
 
 from rill.app import create_app
-from rill.cli import main as cli_main
+from rill.cli import _approval_requests, main as cli_main
 from rill.config import Settings, get_settings
 from rill.llm.openai_compat import LLMResponse, ToolCall
 from rill.llm.openai_compat import OpenAICompatibleClient
@@ -142,6 +142,62 @@ def test_default_tools_and_unconfigured_database_are_safe(tmp_path):
         "code": "database_not_configured",
         "error": "Database is not configured. Set database.url in config.toml or ORIONXCORE_DATABASE__URL, then restart the service.",
     }
+
+
+def test_cli_finds_request_scoped_tool_approval_events():
+    response = {
+        "events": [
+            {"type": "tool_result", "payload": {"name": "run_terminal_command", "result": {"requires_approval": True}}},
+            {"type": "tool_result", "payload": {"name": "filesystem", "result": {"requires_approval": True}}},
+            {"type": "tool_result", "payload": {"name": "run_terminal_command", "result": {"requires_approval": True}}},
+        ]
+    }
+    assert _approval_requests(response) == ["run_terminal_command", "filesystem"]
+
+
+def test_chat_retries_the_same_turn_after_interactive_approval(tmp_path, monkeypatch):
+    import rill.cli as cli
+
+    responses = iter([
+        {
+            "message": {"content": "Approval required."},
+            "events": [{
+                "type": "tool_result",
+                "payload": {"name": "run_terminal_command", "result": {"requires_approval": True}},
+            }],
+        },
+        {"message": {"content": "Done."}, "events": []},
+    ])
+    requests = []
+
+    def fake_post_json(**kwargs):
+        requests.append({**kwargs, "payload": {
+            **kwargs["payload"],
+            "messages": list(kwargs["payload"]["messages"]),
+            "approved_tools": list(kwargs["payload"]["approved_tools"]),
+        }})
+        return next(responses)
+
+    answers = iter(["list files", "y", "exit"])
+    monkeypatch.setattr(cli, "post_json", fake_post_json)
+    monkeypatch.setattr("builtins.input", lambda _prompt="": next(answers))
+
+    from argparse import Namespace
+
+    args = Namespace(
+        session_id=None,
+        no_events=True,
+        approve_tool=[],
+        raw=False,
+        config_file=str(tmp_path / "missing.toml"),
+        base_url="http://127.0.0.1:8080",
+        timeout=10.0,
+    )
+    assert cli.run_chat(args) == 0
+    assert len(requests) == 2
+    assert requests[0]["payload"]["approved_tools"] == []
+    assert requests[1]["payload"]["approved_tools"] == ["run_terminal_command"]
+    assert requests[0]["payload"]["messages"] == requests[1]["payload"]["messages"]
 
 
 def test_multi_provider_model_alias_and_capability_cache():
