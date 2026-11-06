@@ -8,7 +8,7 @@ def render_playground() -> HTMLResponse:
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>OrionXCore Playground</title>
+  <title>Rill Playground</title>
   <style>
     :root {
       --bg: #f2efe8;
@@ -264,7 +264,7 @@ def render_playground() -> HTMLResponse:
 <body>
   <div class="shell">
     <section class="hero">
-      <div class="eyebrow">OrionXCore</div>
+      <div class="eyebrow">Rill</div>
       <h1>API Playground</h1>
       <p>
         Test `agent/respond` and OpenAI-compatible `chat/completions` requests without leaving the browser.

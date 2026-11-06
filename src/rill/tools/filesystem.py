@@ -2,8 +2,8 @@ import os
 from pathlib import Path
 from typing import Any
 
-from orionxcore.config import Settings
-from orionxcore.tools.base import Tool
+from rill.config import Settings
+from rill.tools.base import Tool
 
 
 class FileSystemTool(Tool):
@@ -77,9 +77,32 @@ class FileSystemTool(Tool):
         "required": ["operation"],
         "additionalProperties": False,
     }
+    read_only = False
+    risk_level = "medium"
+    requires_approval = True
+    supports_read_only = True
+
+    def is_read_only(self, arguments: dict[str, Any] | None = None) -> bool:
+        if arguments is None:
+            return True
+        operation = (arguments or {}).get("operation")
+        return operation in {"read_file", "list_dir", "stat", "search"}
+
+    def approval_required(self, arguments: dict[str, Any] | None = None) -> bool:
+        return not self.is_read_only(arguments)
+
+    def schema_for(self, read_only: bool = False) -> dict[str, Any]:
+        if not read_only:
+            return self.input_schema
+        schema = {**self.input_schema, "properties": dict(self.input_schema["properties"])}
+        operation_schema = dict(schema["properties"]["operation"])
+        operation_schema["enum"] = ["read_file", "list_dir", "stat", "search"]
+        schema["properties"]["operation"] = operation_schema
+        return schema
 
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
+        self.max_result_bytes = settings.agent.max_result_bytes
 
     async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:
         operation = arguments.get("operation")

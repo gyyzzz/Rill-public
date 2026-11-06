@@ -3,7 +3,7 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "orionxcore"
+name = "rill"
 version = "0.2.0"
 description = "Lightweight configurable AI coding agent service."
 readme = "README.md"
@@ -21,7 +21,8 @@ dependencies = [
 ]
 
 [project.scripts]
-orionx = "orionxcore.cli:main"
+rill = "rill.cli:main"
+orionx = "rill.cli:main"
 
 [project.optional-dependencies]
 dev = [

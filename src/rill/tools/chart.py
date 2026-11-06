@@ -1,4 +1,5 @@
 import logging
+import asyncio
 import time
 from pathlib import Path
 from typing import Any
@@ -9,8 +10,8 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 from matplotlib import font_manager
 
-from orionxcore.config import Settings
-from orionxcore.tools.base import Tool
+from rill.config import Settings
+from rill.tools.base import Tool
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +68,8 @@ def _configure_chinese_font(custom_family: str = "") -> None:
 
 class ChartTool(Tool):
     name = "generate_chart"
+    read_only = False
+    risk_level = "low"
     description = (
         "Generate a chart image (bar, line, pie, scatter, area) from provided data "
         "and save it as a PNG file. Use this tool when the user asks for a visualization, "
@@ -138,9 +141,14 @@ class ChartTool(Tool):
 
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
+        self.timeout_seconds = settings.agent.tool_timeout_seconds
+        self.max_result_bytes = settings.agent.max_result_bytes
         _configure_chinese_font(settings.chart.font_family)
 
     async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        return await asyncio.to_thread(self._execute_sync, arguments)
+
+    def _execute_sync(self, arguments: dict[str, Any]) -> dict[str, Any]:
         chart_type = arguments.get("chart_type")
         data = arguments.get("data")
 
@@ -155,6 +163,10 @@ class ChartTool(Tool):
 
         if not labels or not isinstance(labels, list):
             return {"ok": False, "error": "data.labels must be a non-empty array"}
+        if len(labels) > self._settings.chart.max_points:
+            return {"ok": False, "error": f"Too many chart labels; maximum is {self._settings.chart.max_points}."}
+        if any(not isinstance(label, str) for label in labels):
+            return {"ok": False, "error": "Every data.labels item must be a string."}
         if not values or not isinstance(values, list):
             return {"ok": False, "error": "data.values must be a non-empty array"}
 
@@ -162,12 +174,16 @@ class ChartTool(Tool):
         is_multi = isinstance(values[0], list)
         if is_multi:
             for series in values:
+                if any(not isinstance(value, (int, float)) or isinstance(value, bool) for value in series):
+                    return {"ok": False, "error": "Chart values must be numeric."}
                 if len(series) != len(labels):
                     return {
                         "ok": False,
                         "error": f"Each series in values must have {len(labels)} items to match labels",
                     }
         else:
+            if any(not isinstance(value, (int, float)) or isinstance(value, bool) for value in values):
+                return {"ok": False, "error": "Chart values must be numeric."}
             if len(values) != len(labels):
                 return {
                     "ok": False,

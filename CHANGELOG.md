@@ -156,8 +156,8 @@
 - 灵活的工具启用/禁用
 
 #### CLI
-- `orionx ask`: 单次提问
-- `orionx chat`: 交互式对话
+- `rill ask`: 单次提问
+- `rill chat`: 交互式对话
 - 会话管理
 
 ---
@@ -211,7 +211,7 @@ vim .env
 
 ```bash
 # 检查新工具
-python -c "from orionxcore.tools import MetricsQueryTool; print('OK')"
+python -c "from rill.tools import MetricsQueryTool; print('OK')"
 
 # 运行测试
 pytest tests/test_metrics_tool.py -v

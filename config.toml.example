@@ -1,36 +1,67 @@
+config_version = 1
 config_file = "./config.toml"
 
+# Optional remote service URL; otherwise CLI connects to localhost on server.port.
+# [client]
+# base_url = "https://rill.example.com"
+
 [server]
-app_name = "OrionXCore"
+app_name = "Rill"
 host = "0.0.0.0"
 port = 8080
 
 [llm]
 model = "gpt-4.1-mini"
+provider = "default"
 api_base_url = "https://api.openai.com/v1"
 http_timeout = 120
+# [llm.model_aliases]
+# fast = "gpt-4.1-mini"
 # Keep api_key in an environment variable: ORIONXCORE_LLM__API_KEY
+# Or use Docker Secret: ORIONXCORE_LLM__API_KEY_FILE=/run/secrets/llm_api_key
+
+# Optional provider profiles. The legacy [llm] keys above remain supported.
+# [llm.providers.default]
+# type = "openai_compatible"
+# api_base_url = "https://api.openai.com/v1"
+# api_key_file = "/run/secrets/provider_api_key"
+# default_model = "gpt-4.1-mini"
+# models = ["gpt-4.1-mini"]
+# retries = 2
+# [llm.providers.default.capabilities]
+# tool_call = true
+# json = true
+# streaming = true
 
 [agent]
-system_prompt = "You are OrionXCore, a lightweight AI coding agent."
+system_prompt = "You are Rill, a lightweight AI coding agent."
 max_iterations = 6
+max_tool_calls = 24
+max_result_bytes = 1048576
+tool_timeout_seconds = 60
+execution_mode = "auto"
 max_concurrent_requests = 4
 queue_timeout_seconds = 5.0
+# Optional Agent profile examples:
+# [agent.profiles.read_only]
+# read_only = true
+# allowed_tools = ["database_query", "filesystem"]
 
 [logging]
 level = "INFO"
 format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-# file = "./logs/orionxcore.log"
+# file = "./logs/rill.log"
 
 [terminal]
 enabled = true
 workdir = "."
 timeout_seconds = 30
 allow_risky_commands = false
-require_confirmation = false
+require_confirmation = true
 
 [database]
-enabled = false
+enabled = true
+# Optional until the database tool is called. Keep credentials in ORIONXCORE_DATABASE__URL.
 url = ""
 max_rows = 200
 query_timeout_seconds = 30
@@ -38,7 +69,7 @@ allow_mutation = false
 allowed_databases = []
 
 [filesystem]
-enabled = false
+enabled = true
 allow_write = true
 allow_delete = false
 max_read_bytes = 1048576
@@ -46,10 +77,11 @@ max_write_bytes = 1048576
 max_list_entries = 500
 
 [chart]
-enabled = true
+enabled = false
 max_width = 1920
 max_height = 1080
 default_dpi = 100
+max_points = 10000
 font_family = ""
 
 [upload]
@@ -60,3 +92,25 @@ allowed_extensions = [
   ".xml", ".html", ".js", ".ts", ".sql", ".sh", ".cfg", ".ini",
   ".conf", ".toml", ".rst"
 ]
+
+[auth]
+enabled = false
+api_keys = []
+# Optional scoped keys; global api_keys are accepted for every permission.
+agent_api_keys = []
+tool_api_keys = []
+diagnostic_api_keys = []
+allow_local_without_key = true
+
+[cors]
+enabled = true
+allow_origins = ["*"]
+allow_credentials = false
+
+[tool_policy]
+read_only_mode = false
+fallback_allow_write_tools = false
+allowed_tools = []
+denied_tools = []
+require_approval_for_risky = false
+max_calls_per_request = 24

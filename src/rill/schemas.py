@@ -17,12 +17,23 @@ class AgentRequest(BaseModel):
 
     messages: list[ChatMessage]
     session_id: str | None = None
+    request_id: str | None = None
+    model: str | None = None
+    provider: str | None = None
+    profile: str | None = None
+    execution_mode: Literal["auto", "native_tool_call", "json_fallback", "no_tools"] | None = None
+    tools: list[dict[str, Any]] | None = None
+    approved_tools: list[str] = Field(default_factory=list)
+    tool_choice: str | dict[str, Any] | None = None
+    parallel_tool_calls: bool | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class AgentEvent(BaseModel):
     type: str
     payload: dict[str, Any]
+    request_id: str | None = None
+    timestamp: float | None = None
 
 
 class AgentResponse(BaseModel):
@@ -30,12 +41,39 @@ class AgentResponse(BaseModel):
     events: list[AgentEvent] = Field(default_factory=list)
     iterations: int
     session_id: str | None = None
+    request_id: str | None = None
+    provider: str | None = None
+    model: str | None = None
+    execution_mode: str | None = None
+    stop_reason: str | None = None
 
 
 class ToolDescriptor(BaseModel):
     name: str
     description: str
     input_schema: dict[str, Any]
+    read_only: bool = True
+    risk_level: Literal["low", "medium", "high"] = "low"
+    requires_approval: bool = False
+    timeout_seconds: float | None = None
+    max_result_bytes: int | None = None
+
+
+class ModelDescriptor(BaseModel):
+    id: str
+    object: Literal["model"] = "model"
+    owned_by: str
+    capabilities: dict[str, Any] = Field(default_factory=dict)
+
+
+class ModelListResponse(BaseModel):
+    object: Literal["list"] = "list"
+    data: list[ModelDescriptor]
+
+
+class CapabilityProbeRequest(BaseModel):
+    provider: str
+    model: str
 
 
 class ChatCompletionRequest(BaseModel):
@@ -43,6 +81,7 @@ class ChatCompletionRequest(BaseModel):
 
     messages: list[ChatMessage]
     model: str | None = None
+    provider: str | None = None
     stream: bool = False
     temperature: float | None = None
     top_p: float | None = None

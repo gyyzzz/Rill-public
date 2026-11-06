@@ -11,5 +11,5 @@ build/
 src/*.egg-info/
 start.sh
 workspace/
-docs/
+!skills/
 scripts/

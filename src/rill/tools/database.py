@@ -1,11 +1,12 @@
+import asyncio
 from typing import Any
 import logging
 
 from sqlalchemy import create_engine, text
 
-from orionxcore.config import Settings
-from orionxcore.llm.openai_compat import OpenAICompatibleClient
-from orionxcore.tools.base import Tool
+from rill.config import Settings
+from rill.llm.openai_compat import OpenAICompatibleClient
+from rill.tools.base import Tool
 
 
 class DatabaseTool(Tool):
@@ -53,11 +54,17 @@ class DatabaseTool(Tool):
         self._settings = settings
         self._llm_client = OpenAICompatibleClient(settings)
         self._logger = logging.getLogger(__name__)
+        self.timeout_seconds = settings.agent.tool_timeout_seconds
+        self.max_result_bytes = settings.agent.max_result_bytes
 
     async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:
         database_url = self._settings.database.url
         if not database_url:
-            return {"ok": False, "error": "Database is not configured."}
+            return {
+                "ok": False,
+                "code": "database_not_configured",
+                "error": "Database is not configured. Set database.url in config.toml or ORIONXCORE_DATABASE__URL, then restart the service.",
+            }
         if not self._is_clickhouse_url(database_url):
             return {
                 "ok": False,
@@ -67,12 +74,12 @@ class DatabaseTool(Tool):
         operation = arguments.get("operation") or "query"
         self._logger.info(f"数据库操作: {operation}")
         if operation == "list_tables":
-            return self._list_tables(arguments)
+            return await asyncio.to_thread(self._list_tables, arguments)
         if operation == "describe_table":
-            return self._describe_table(arguments)
+            return await asyncio.to_thread(self._describe_table, arguments)
         if operation == "text_to_sql":
             return await self._text_to_sql(arguments)
-        return self._execute_sql(arguments)
+        return await asyncio.to_thread(self._execute_sql, arguments)
 
     def _execute_sql(self, arguments: dict[str, Any]) -> dict[str, Any]:
         statement = (arguments.get("statement") or "").strip()
@@ -86,7 +93,7 @@ class DatabaseTool(Tool):
             int(arguments.get("limit") or self._settings.database.max_rows),
             self._settings.database.max_rows,
         )
-        self._logger.info(f"执行 SQL: {statement[:200]}...")
+        self._logger.info("Executing read-only ClickHouse query bytes=%s", len(statement.encode("utf-8")))
         try:
             engine = create_engine(self._settings.database.url)
             with engine.connect() as connection:
@@ -103,7 +110,7 @@ class DatabaseTool(Tool):
                 "rows": [dict(row._mapping) for row in rows],
             }
         except Exception as e:
-            self._logger.error(f"SQL 执行失败: {e}")
+            self._logger.error("ClickHouse query failed error_type=%s", type(e).__name__)
             return {"ok": False, "error": str(e), "sql": statement}
 
     async def _text_to_sql(self, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -111,8 +118,8 @@ class DatabaseTool(Tool):
         if not question:
             return {"ok": False, "error": "Missing natural language question for text_to_sql."}
 
-        self._logger.info(f"Text-to-SQL: {question}")
-        schema_context = self._build_schema_context(arguments)
+        self._logger.info("Text-to-SQL request question_bytes=%s", len(question.encode("utf-8")))
+        schema_context = await asyncio.to_thread(self._build_schema_context, arguments)
         self._logger.debug(f"Schema context 长度: {len(schema_context)} 字符")
         trace: dict[str, Any] = {
             "question": question,
@@ -123,13 +130,11 @@ class DatabaseTool(Tool):
             "attempts": [],
         }
         sql = await self._generate_sql(question=question, schema_context=schema_context)
-        self._logger.info(f"生成 SQL (尝试1): {sql}")
+        self._logger.info("Generated SQL on attempt 1 bytes=%s", len(sql.encode("utf-8")))
         trace["attempts"].append({"attempt": 1, "sql": sql})
-        first_result = self._execute_sql(
-            {
-                "statement": sql,
-                "limit": arguments.get("limit"),
-            }
+        first_result = await asyncio.to_thread(
+            self._execute_sql,
+            {"statement": sql, "limit": arguments.get("limit")},
         )
         if first_result.get("ok"):
             trace["attempt_count"] = 1
@@ -148,7 +153,7 @@ class DatabaseTool(Tool):
             previous_sql=sql,
             previous_error=first_result.get("error", "Unknown SQL execution error."),
         )
-        self._logger.info(f"生成 SQL (尝试2): {retry_sql}")
+        self._logger.info("Generated SQL on attempt 2 bytes=%s", len(retry_sql.encode("utf-8")))
         trace["attempts"].append(
             {
                 "attempt": 2,
@@ -156,11 +161,9 @@ class DatabaseTool(Tool):
                 "retry_reason": first_result.get("error"),
             }
         )
-        second_result = self._execute_sql(
-            {
-                "statement": retry_sql,
-                "limit": arguments.get("limit"),
-            }
+        second_result = await asyncio.to_thread(
+            self._execute_sql,
+            {"statement": retry_sql, "limit": arguments.get("limit")},
         )
         if not second_result.get("ok"):
             trace["attempts"][1]["error"] = second_result.get("error")
