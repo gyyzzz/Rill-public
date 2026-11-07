@@ -8,67 +8,49 @@
 
 **Less is more. Simplicity is beauty.**
 
-Rill is a small self-hosted Agent Gateway. Give it an OpenAI-compatible model
-and API key; Rill runs one or more model turns, executes approved tools, and
-returns the result over HTTP, SSE, or the CLI:
+Rill 是一个轻量、自托管的 Agent Gateway。配置一个或多个 OpenAI 兼容模型
+服务并启动 Rill 后，提供可供客户端调用的 HTTP API：Agent API 在服务端
+完成模型与工具的多轮循环，以 JSON 或 SSE 返回结果；
+可以通过 HTTP API 将 Rill 接入自己的 Web UI、IDE 插件或任何自动化流程。
 
-```text
-client -> Rill -> model
-                 |
-                 +-> tools
+## Why Rill？
+
+| 你的需求                   | 推荐                      | 原因                     |
+| ---------------------- | ----------------------- | ---------------------- |
+| 终端里的成熟 AI coding agent | **Claude Code 或 Codex** | 客户端体验和编程工作流更完整         |
+| IDE 集成开发环境             | **IDE 原生 Agent**        | 编辑器集成更深                |
+| 自托管 Agent API          | **Rill**                | 一个小服务，接入任意 OpenAI 兼容模型 |
+| 服务端工具循环                | **Rill**                | HTTP/SSE 接口简单，工具在服务端执行 |
+| 按需扩展工具                 | **Rill**                | 小型可靠底座，配合 Skill 开发扩展   |
+| 小团队内部运维自动化             | **Rill**                | 配置少、部署简单、权限可控          |
+
+> [!NOTE]
+>
+> 当前项目仅提供 `rill chat` 字符客户端，没有完整的图形化客户端；
+> 你可以在编程助手中参考 [API 文档](docs/API.md) 将 Rill 集成到自己的系统，或从零开发一个图形化客户端。
+
+## 架构
+
+![image-20261107220626184](./README.assets/image-20261107220626184.png)
+
+`/v1/chat/completions` 只执行一轮兼容模型调用；`/v1/agent/*` 执行服务端
+Agent 循环：模型提出工具调用，Rill 检查策略并执行，再将工具结果送回模型，
+直到得到最终回答或达到限制。工具由配置启用，并经过允许/拒绝、审批、超时和
+结果大小检查；完整边界见[架构文档](docs/ARCHITECTURE.md)。
+
+## 快速开始
+
+### 安装 uv
+
+没有 uv 时先安装：
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-One service, one config file, one model endpoint. `/v1/chat/completions` makes
-one compatible model turn; `/v1/agent/*` runs the server-side Agent loop.
+### 本地运行
 
-## Why Rill?
-
-| Need | Recommendation | Why |
-| --- | --- | --- |
-| A polished AI coding agent for your terminal | **Claude Code or Codex** | Better client experience and coding workflows |
-| An IDE coding assistant | **GitHub Copilot or an IDE-native agent** | Deep editor integration |
-| A self-hosted Agent API for your own app | **Rill** | One small service, any OpenAI-compatible model |
-| A server-side tool loop behind a Web UI, script, or plugin | **Rill** | HTTP/SSE in, tool events out |
-| A private ClickHouse natural-language query service | **Rill** | Built-in schema-aware Text-to-SQL tool |
-| A small-team operations assistant or automation service | **Rill** | Small deployment and explicit tool policy |
-| A high-concurrency distributed Agent platform | **A managed platform** | Rill has no distributed scheduler or elastic cluster |
-| A fully managed AI platform | **A managed provider** | Less infrastructure to operate |
-
-Rill is intentionally not a replacement for Claude Code or Codex. It is the
-small service to put behind your own clients, models, and tools.
-
-## Architecture
-
-```text
-CLI / Web UI / IDE plugin / script
-                 |
-            REST / SSE
-                 v
-        +-------------------+
-        |       Rill        |
-        | API + Agent loop  |
-        | Provider adapter  |
-        | Tool registry     |
-        +---------+---------+
-                  |
-        +---------+----------+
-        |                    |
-   OpenAI-compatible API  Tools
-                         terminal
-                         filesystem
-                         ClickHouse
-                         charts
-```
-
-The compatibility API makes one model turn. The Agent API runs the loop and
-returns execution events. See [Architecture](docs/ARCHITECTURE.md) for the
-full boundary and event model.
-
-## Quickstart
-
-### Local
-
-Copy and run this from the repository root:
+在仓库根目录执行：
 
 ```bash
 uv sync
@@ -76,134 +58,129 @@ cp config.toml.example config.toml
 cp .env.example .env
 ```
 
-Set `[llm].model` and `[llm].api_base_url` in `config.toml`, then put the
-provider key in `.env`:
+编辑 `config.toml`，设置模型和模型服务地址：
+
+```toml
+[llm]
+model = "deepseek-v4-flash"
+api_base_url = "https://api.deepseek.com"
+```
+
+编辑 `.env`，填入 API Key：
 
 ```bash
 ORIONXCORE_LLM__API_KEY=replace-me
 ```
 
-Start the service from the configuration:
+检查并启动服务：
 
 ```bash
 uv run rill config check
 uv run rill serve
 ```
 
-`rill serve` reads `[server].host` and `[server].port` and defaults to
-`0.0.0.0:8080`. Uvicorn can still override them explicitly.
-
-In another terminal:
+`rill serve` 读取 `[server].host` 和 `[server].port`，默认监听
+`0.0.0.0:8080`。另开终端验证：
 
 ```bash
-uv run rill ask "List the files in the current workspace."
-uv run rill chat
 curl http://127.0.0.1:8080/health/ready
-open http://127.0.0.1:8080/playground
+uv run rill ask "列出当前工作区中的文件。"
+uv run rill chat
 ```
 
-When a tool needs approval, `rill chat` prompts with `y/N` and retries the
-current turn after confirmation. Pre-approve tools for every turn at startup:
+`rill chat` 在工具需要审批时会显示工具名称并询问 `y/N`；输入 `y` 后会重试
+当前轮次并执行该工具。也可以在启动 chat 时预批准工具：
 
 ```bash
 uv run rill chat --approve-tool run_terminal_command --approve-tool filesystem
 ```
 
-Replace `replace-me` with an API key for the provider in `config.toml`.
+也可以用 `uv run uvicorn rill.main:app --host 0.0.0.0 --port 8080` 启动；
+这时监听地址由 Uvicorn 参数决定。
 
 ### Docker
 
 ```bash
 cp config.toml.example config.toml
-printf '%s\n' 'ORIONXCORE_LLM__API_KEY=replace-me' > .env
+cp .env.example .env
+```
+
+编辑 `config.toml` 中的 `[llm]`，并在 `.env` 中填入：
+
+```bash
+ORIONXCORE_LLM__API_KEY=replace-me
+```
+
+启动并检查：
+
+```bash
 docker compose -f deploy/docker-compose.yml up -d --build
 curl http://127.0.0.1:8080/health/ready
 ```
 
-Stop it with:
+停止服务：
 
 ```bash
 docker compose -f deploy/docker-compose.yml down
 ```
 
-More deployment options: [Deployment](docs/DEPLOYMENT.md).
+## 工具
 
-## Configuration
+考虑我司产品主要运行在内网。Rill 的工具按项目内的 `Tool` 接口开发，在
+`build_registry` 中注册并通过配置启用，随 Rill 服务一起部署和执行。
+接入现有内网 API 或数据库时，可以在工具中封装调用逻辑，无需为工具调用
+单独部署服务；目标系统的网络连通和认证仍需按实际环境配置。
 
-The smallest useful configuration is already in `config.toml.example`:
-
-```toml
-[llm]
-model = "gpt-4.1-mini"
-api_base_url = "https://api.openai.com/v1"
-```
-
-Secrets stay in `.env` or a Docker Secret. Validate before starting:
-
-```bash
-uv run rill config check
-uv run rill config show
-```
-
-For provider profiles, model aliases, authentication, tool policy, and Docker
-Secrets, see [Configuration](docs/CONFIGURATION.md).
-
-## Tools
-
-Terminal, filesystem, and database tools are enabled by default. The chart tool
-is opt-in:
+默认启用终端、文件系统和数据库工具；图表工具需要显式开启：生产环境请评估保留最小化工具开启。
 
 ```bash
 uv run rill tool list
-uv run rill tool enable generate_chart
+uv run rill tool enable tool_name
 ```
 
-Database starts without a connection URL and reports a configuration error only
-when called. Terminal execution and filesystem writes require request approval:
+终端和文件系统的写操作需要请求级批准：
 
 ```bash
-uv run rill ask --approve-tool run_terminal_command "show the current directory"
+uv run rill ask \
+  --approve-tool run_terminal_command \
+  --approve-tool filesystem \
+  "列出当前工作区中的文件"
 ```
 
-To add a tool, implement `Tool`, register it in `build_registry`, add its
-configuration switch, and test its policy metadata:
-
-```text
-src/rill/tools/<your_tool>.py
-```
-
-Read [Tool development](docs/TOOLS.md) or the project skill at
-[`skills/tool-development/SKILL.md`](skills/tool-development/SKILL.md).
+HTTP 客户端在 Agent 请求中传入相同的 `approved_tools` 数组。OpenAI 兼容的
+`/v1/chat/completions` 由客户端负责工具调用；需要服务端自动循环时使用
+`/v1/agent/respond` 或 `/v1/agent/stream`。添加自定义工具的完整流程见
+[工具开发文档](docs/TOOLS.md)和[开发 Skill](skills/tool-development/SKILL.md)。
 
 ## API
 
-```text
-GET  /health/live
-GET  /health/ready
-GET  /v1/models
-GET  /v1/tools
-POST /v1/agent/respond
-POST /v1/agent/stream
-POST /v1/chat/completions
-```
+| 入口 | 用途 |
+| --- | --- |
+| `GET /health/live` | 进程存活检查 |
+| `GET /health/ready` | 配置和工作区就绪检查 |
+| `GET /v1/models` | 查看配置的模型 |
+| `GET /v1/tools` | 查看已启用工具及审批元数据 |
+| `POST /v1/agent/respond` | 服务端执行 Agent 循环并返回完整结果 |
+| `POST /v1/agent/stream` | 以 SSE 流式返回 Agent 事件 |
+| `POST /v1/chat/completions` | OpenAI 兼容的一轮调用 |
 
-Example Agent request:
+最小 Agent 请求：
 
 ```bash
 curl -sS -X POST http://127.0.0.1:8080/v1/agent/respond \
   -H 'Content-Type: application/json' \
-  -d '{"messages":[{"role":"user","content":"List the files in the workspace."}]}'
+  -d '{"messages":[{"role":"user","content":"列出工作区中的文件。"}]}'
 ```
 
-## Docs
+## 文档
 
-- [Configuration](docs/CONFIGURATION.md)
-- [Installation](docs/INSTALL.md)
-- [Deployment](docs/DEPLOYMENT.md)
-- [Architecture](docs/ARCHITECTURE.md)
-- [Tools](docs/TOOLS.md)
-- [API](docs/API.md)
-- [Dependencies](docs/dependencies.md)
-- [Product plan](docs/PRODUCT_PLAN.md)
+- [配置](docs/CONFIGURATION.md)
+- [安装](docs/INSTALL.md)
+- [部署](docs/DEPLOYMENT.md)
+- [架构](docs/ARCHITECTURE.md)
+- [工具开发](docs/TOOLS.md)
+- [API 接口](docs/API.md)
+- [依赖](docs/dependencies.md)
+- [产品计划](docs/PRODUCT_PLAN.md)
 
-Chinese overview: [README_zh.md](README_zh.md).
+English: [README_en.md](README_en.md).

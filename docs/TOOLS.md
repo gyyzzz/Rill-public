@@ -5,6 +5,14 @@ model and to `GET /v1/tools`. The registry validates JSON Schema arguments,
 applies policy, enforces timeouts and result limits, and records execution
 events.
 
+For products deployed on internal networks, custom tools can wrap existing
+internal APIs or databases inside the Rill service. Implement a `Tool`, register
+it in `build_registry`, and enable it in configuration; the tool code is deployed
+with Rill, so tool execution does not require a separate service. Connections
+and credentials for the target systems must still be configured for that
+environment. The project skill guides development but does not load tools at
+runtime.
+
 ## Built-in tools
 
 | Name | Config switch | Default | Risk and behavior |

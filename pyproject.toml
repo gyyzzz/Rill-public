@@ -22,7 +22,6 @@ dependencies = [
 
 [project.scripts]
 rill = "rill.cli:main"
-orionx = "rill.cli:main"
 
 [project.optional-dependencies]
 dev = [
