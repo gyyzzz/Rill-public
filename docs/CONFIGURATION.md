@@ -1,12 +1,12 @@
-# Configuration
+# 配置
 
-Rill reads one TOML file and optional environment values. The default file is
-`config.toml` in the project root. Select another file with
-`ORIONXCORE_CONFIG_FILE` or the global CLI option `--config-file`.
+Rill 会读取一个 TOML 文件以及可选的环境变量。默认文件为项目根目录下的
+`config.toml`。可通过 `ORIONXCORE_CONFIG_FILE` 或全局 CLI 选项 `--config-file` 指定
+其他文件。
 
-## Precedence
+## 优先级
 
-Values are applied in this order, from low to high priority:
+配置值按以下顺序应用，优先级从低到高：
 
 1. Rill defaults
 2. `config.toml`
@@ -14,13 +14,13 @@ Values are applied in this order, from low to high priority:
 4. Process environment variables
 5. Explicit settings passed by an embedding application
 
-Environment names use the section and field path separated by `__`:
+环境变量名称使用配置节和字段路径，并以 `__` 分隔：
 
 ```text
 ORIONXCORE_<SECTION>__<FIELD>=value
 ```
 
-For example:
+例如：
 
 ```bash
 export ORIONXCORE_LLM__MODEL=gpt-4.1-mini
@@ -28,38 +28,35 @@ export ORIONXCORE_SERVER__PORT=8080
 export ORIONXCORE_TERMINAL__ENABLED=false
 ```
 
-Environment values are parsed as their target type. Lists and objects can be
-provided as JSON, for example:
+环境变量会按目标字段类型解析。列表和对象可以使用 JSON 提供，例如：
 
 ```bash
 export ORIONXCORE_AUTH__API_KEYS='["a-long-random-key"]'
 ```
 
-The complete starter file is [`config.toml.example`](../config.toml.example).
+完整的起始配置文件见 [`config.toml.example`](../config.toml.example)。
 
-The default runtime enables `terminal`, `filesystem`, and `database`; `chart`
-is disabled until explicitly enabled. Database configuration is lazy: an empty
-`database.url` is valid at startup and produces `database_not_configured` only
-when the database tool is called.
+默认运行环境会启用 `terminal`、`filesystem` 和 `database`；`chart` 默认关闭，需显式
+启用。数据库配置采用延迟校验：启动时 `database.url` 为空是有效配置，只有调用数据库
+工具时才会返回 `database_not_configured`。
 
-## CLI service address
+## CLI 服务地址
 
-The CLI uses `[client].base_url` for `ask`, `chat`, and `status`. If omitted,
-the CLI connects to `http://127.0.0.1` using `[server].port`. This client
-address is separate from the server bind address.
+CLI 的 `ask`、`chat` 和 `status` 命令使用 `[client].base_url`。如果未设置，CLI 会
+使用 `[server].port` 连接 `http://127.0.0.1`。此客户端地址与服务器绑定地址相互独立。
 
 ```toml
 [client]
 base_url = "http://127.0.0.1:18080"
 ```
 
-Override it for a single command by placing `--base-url` before the command:
+如需为单条命令覆盖地址，请将 `--base-url` 放在命令之前：
 
 ```bash
 uv run rill --base-url http://127.0.0.1:18080 ask "List workspace files."
 ```
 
-## First setup
+## 初始设置
 
 ```bash
 cp config.toml.example config.toml
@@ -81,7 +78,7 @@ uv run rill config restore
 Do not pass secrets to `config set`; it rejects paths containing `api_key`,
 `password`, `secret`, or `token`.
 
-## Model and provider
+## 模型与 Provider
 
 The compatibility fields under `[llm]` are the shortest configuration:
 
@@ -148,7 +145,7 @@ or fragments. The provider name is also available in an Agent request through
 the optional `provider` field, and model aliases resolve before the request is
 sent.
 
-## Agent profiles and execution
+## Agent 档案与执行
 
 The `[agent]` section controls the server-side loop:
 
@@ -172,7 +169,7 @@ provider tool calls when the provider advertises them, otherwise it uses the
 JSON fallback. JSON fallback keeps write tools disabled unless
 `tool_policy.fallback_allow_write_tools = true`.
 
-## Authentication and CORS
+## 认证与 CORS
 
 Authentication is disabled by default for local development. For a reachable
 deployment, configure at least one key and turn it on:
@@ -213,7 +210,7 @@ allow_credentials = false
 
 Credentials cannot be enabled while `allow_origins` contains `"*"`.
 
-## Tool policy
+## 工具策略
 
 Use a global policy to constrain every Agent request:
 
@@ -238,7 +235,7 @@ uv run rill ask \
   "show the current directory"
 ```
 
-## Docker secrets
+## Docker 密钥
 
 Mount a secret and point the setting to its file. The file is read at startup
 and its contents are never written to the TOML configuration:

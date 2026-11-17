@@ -1,9 +1,6 @@
-# Tools
+# 工具
 
-Rill builds a `ToolRegistry` at startup. Only enabled tools are exposed to the
-model and to `GET /v1/tools`. The registry validates JSON Schema arguments,
-applies policy, enforces timeouts and result limits, and records execution
-events.
+Rill 在启动时构建 `ToolRegistry`。只有已启用的工具才会提供给模型和 `GET /v1/tools`。注册表会校验 JSON Schema 参数、应用策略、强制执行超时和结果大小限制，并记录执行事件。
 
 For products deployed on internal networks, custom tools can wrap existing
 internal APIs or databases inside the Rill service. Implement a `Tool`, register
@@ -13,14 +10,14 @@ and credentials for the target systems must still be configured for that
 environment. The project skill guides development but does not load tools at
 runtime.
 
-## Built-in tools
+## 内置工具
 
-| Name | Config switch | Default | Risk and behavior |
+| 名称 | 配置开关 | 默认值 | 风险与行为 |
 | --- | --- | --- | --- |
-| `run_terminal_command` | `[terminal].enabled` | on | High risk; runs in `terminal.workdir`; confirmation is on by default |
-| `filesystem` | `[filesystem].enabled` | on | Read and write operations in its workspace; writes and deletes require approval |
-| `database_query` | `[database].enabled` | on | Read-only ClickHouse queries and schema inspection |
-| `generate_chart` | `[chart].enabled` | off | Generates chart files in the configured workspace |
+| `run_terminal_command` | `[terminal].enabled` | 开启 | 高风险；在 `terminal.workdir` 中运行；默认需要确认 |
+| `filesystem` | `[filesystem].enabled` | 开启 | 在其工作区内读写；写入和删除需要审批 |
+| `database_query` | `[database].enabled` | 开启 | 只读执行 ClickHouse 查询和 Schema 检查 |
+| `generate_chart` | `[chart].enabled` | 关闭 | 在配置的工作区中生成图表文件 |
 
 The example configuration enables terminal, filesystem, and database tools.
 Chart generation is opt-in. Docker Compose mounts `./workspace` as `/workspace`.
@@ -34,7 +31,7 @@ uv run rill tool list
 curl http://127.0.0.1:8080/v1/tools
 ```
 
-## Enable a built-in tool
+## 启用内置工具
 
 The CLI updates the corresponding TOML section and creates a `.bak` before the
 change:
@@ -61,7 +58,7 @@ Keep database credentials outside shared configuration when the URL can contain
 secrets; use the provider or deployment secret mechanism supported by the
 database driver and restrict the file permissions.
 
-## Approval and policy
+## 审批与策略
 
 Tools declare `read_only`, `risk_level`, and `requires_approval`. These values
 are returned by `/v1/tools` and are enforced again during execution.
@@ -115,7 +112,7 @@ For HTTP, include the same names in the request body:
 The approval list is request scoped. It does not change the configuration or
 grant future requests access.
 
-## Add a custom tool
+## 添加自定义工具
 
 1. Read [`skills/tool-development/SKILL.md`](../skills/tool-development/SKILL.md)
    and the closest built-in implementation.
