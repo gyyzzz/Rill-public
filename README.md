@@ -8,7 +8,7 @@
 
 **Less is more. Simplicity is beauty.**
 
-Rill 是一个轻量、自托管的 Agent Gateway。配置一个或多个 OpenAI 兼容模型
+Rill 是一个轻量、自托管的 Agent Runtime。配置一个或多个 OpenAI 兼容模型
 服务并启动 Rill 后，提供可供客户端调用的 HTTP API：Agent API 在服务端
 完成模型与工具的多轮循环，以 JSON 或 SSE 返回结果；
 可以通过 HTTP API 将 Rill 接入自己的 Web UI、IDE 插件或任何自动化流程。
