@@ -7,7 +7,7 @@ services:
     env_file:
       - ../.env
     ports:
-      - "8080:8080"
+      - "18080:8080"
     environment:
       - ORIONXCORE_TERMINAL__WORKDIR=/workspace
       - ORIONXCORE_FILESYSTEM__WORKDIR=/workspace
